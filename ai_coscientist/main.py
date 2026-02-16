@@ -6,6 +6,7 @@ Implements hypothesis generation, review, ranking, and evolution using a tournam
 
 import json
 import random
+import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -16,8 +17,9 @@ from typing import (
     List,
     Optional,
     TypedDict,
-    Protocol,
 )
+import os
+
 from dotenv import load_dotenv
 
 from swarms import Agent
@@ -25,6 +27,25 @@ from swarms.structs.conversation import Conversation
 from loguru import logger
 
 load_dotenv()
+
+_API_KEY_ENV_VARS = [
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "GEMINI_API_KEY",
+]
+
+
+def _check_api_keys() -> None:
+    """Warn if no LLM API keys are found in environment."""
+    found = [k for k in _API_KEY_ENV_VARS if os.getenv(k)]
+    if not found:
+        logger.warning(
+            f"No LLM API keys found in environment. "
+            f"Set at least one of: {', '.join(_API_KEY_ENV_VARS)}"
+        )
+
+
+_check_api_keys()
 
 
 class AgentRole(Enum):
@@ -139,12 +160,6 @@ class WorkflowResult(TypedDict):
     conversation_history: str
     execution_metrics: ExecutionMetrics
     total_workflow_time: float
-
-
-class JSONParseable(Protocol):
-    """Protocol for objects that can be safely parsed from JSON."""
-
-    def get(self, key: str, default: Any = None) -> Any: ...
 
 
 @dataclass
@@ -277,7 +292,9 @@ class AIScientistFramework:
             if base_path
             else Path("./ai_coscientist_states")
         )
-        self.base_path.mkdir(exist_ok=True, parents=True)
+        self.base_path.mkdir(
+            exist_ok=True, parents=True, mode=0o700
+        )
         self.verbose: bool = verbose
         self.conversation: Conversation = Conversation()
         self.hypotheses: List[Hypothesis] = []
@@ -871,8 +888,6 @@ Example JSON Output:
             }
 
         # Strip common markdown code-fence wrappers (``` or ```json)
-        import re
-
         cleaned = re.sub(
             r"```(?:json)?\s*([\s\S]*?)```",
             r"\1",
@@ -910,16 +925,36 @@ Example JSON Output:
         except Exception:
             pass  # Fallthrough to regex extraction
 
-        # Technique 2 – regex search for first balanced braces
-        import re
-
-        brace_pattern = re.compile(r"\{.*?\}", re.DOTALL)
-        for match in brace_pattern.finditer(json_str):
-            candidate = match.group()
-            try:
-                return json.loads(candidate)
-            except Exception:
-                continue  # Try next candidate
+        # Technique 2 – extract balanced brace substrings
+        for i, ch in enumerate(json_str):
+            if ch != "{":
+                continue
+            depth = 0
+            in_string = False
+            escape = False
+            for j in range(i, len(json_str)):
+                c = json_str[j]
+                if escape:
+                    escape = False
+                    continue
+                if c == "\\":
+                    escape = True
+                    continue
+                if c == '"' and not escape:
+                    in_string = not in_string
+                    continue
+                if in_string:
+                    continue
+                if c == "{":
+                    depth += 1
+                elif c == "}":
+                    depth -= 1
+                    if depth == 0:
+                        candidate = json_str[i : j + 1]
+                        try:
+                            return json.loads(candidate)
+                        except Exception:
+                            break  # This '{' failed, try next
 
         # If all parsing attempts failed, return error with snippet for debugging
         logger.warning(
@@ -1276,6 +1311,13 @@ Example JSON Output:
         ranking_response = self.ranking_agent.run(
             json.dumps({"hypotheses_for_ranking": ranking_input})
         )
+
+        if not ranking_response or not ranking_response.strip():
+            logger.warning(
+                "Ranking agent returned empty response, using score-based fallback"
+            )
+            ranking_response = '{"ranked_hypotheses": []}'
+
         self.conversation.add(
             role=self.ranking_agent.agent_name,
             content=ranking_response,
@@ -1503,6 +1545,18 @@ Example JSON Output:
         meta_review_response = self.meta_review_agent.run(
             json.dumps({"reviews": all_reviews_for_meta})
         )
+
+        if (
+            not meta_review_response
+            or not meta_review_response.strip()
+        ):
+            logger.warning(
+                "Meta-review agent returned empty response"
+            )
+            meta_review_response = (
+                '{"meta_review_summary": "No meta-review available"}'
+            )
+
         self.conversation.add(
             role=self.meta_review_agent.agent_name,
             content=meta_review_response,
@@ -1566,6 +1620,18 @@ Example JSON Output:
         proximity_response = self.proximity_agent.run(
             json.dumps({"hypotheses_texts": hypothesis_texts})
         )
+
+        if (
+            not proximity_response
+            or not proximity_response.strip()
+        ):
+            logger.warning(
+                "Proximity agent returned empty response"
+            )
+            proximity_response = (
+                '{"similarity_clusters": []}'
+            )
+
         self.conversation.add(
             role=self.proximity_agent.agent_name,
             content=proximity_response,
@@ -1650,7 +1716,7 @@ Example JSON Output:
         tournament_rounds = (
             len(hypotheses) * 3
         )  # 3 rounds per hypothesis
-        k_factor = 24  # K-factor to control Elo update speed
+        k_factor = 32  # Standard Elo K-factor (matches Hypothesis.update_elo default)
 
         logger.info(
             f"Starting tournament phase: {len(hypotheses)} hypotheses, {tournament_rounds} rounds"
@@ -1686,6 +1752,17 @@ Example JSON Output:
                 tournament_response = self.tournament_agent.run(
                     json.dumps(tournament_input)
                 )
+
+                if (
+                    not tournament_response
+                    or not tournament_response.strip()
+                ):
+                    logger.warning(
+                        f"Tournament agent returned empty response in round {round_num+1}"
+                    )
+                    skipped_rounds += 1
+                    continue
+
                 self.conversation.add(
                     role=self.tournament_agent.agent_name,
                     content=tournament_response,
@@ -1697,8 +1774,6 @@ Example JSON Output:
                 winner_choice = tournament_data.get("winner")
                 if winner_choice not in {"a", "b"}:
                     # Attempt regex extraction as fallback
-                    import re
-
                     match = re.search(
                         r'"winner"\s*:\s*"?([ab])"?',
                         tournament_response,
@@ -1832,15 +1907,23 @@ Example JSON Output:
                 )
 
                 # --- Evolution ---
-                top_hypotheses_for_evolution = self.hypotheses[
-                    : min(self.evolution_top_k, len(self.hypotheses))
-                ]  # Evolve top k
+                evo_count = min(
+                    self.evolution_top_k, len(self.hypotheses)
+                )
+                top_hypotheses_for_evolution = (
+                    self.hypotheses[:evo_count]
+                )
+                remaining_hypotheses = (
+                    self.hypotheses[evo_count:]
+                )
                 logger.debug(
-                    f"Evolving top {len(top_hypotheses_for_evolution)} hypotheses"
+                    f"Evolving top {len(top_hypotheses_for_evolution)} hypotheses, preserving {len(remaining_hypotheses)} others"
                 )
-                self.hypotheses = self._run_evolution_phase(
-                    top_hypotheses_for_evolution, meta_review_data
+                evolved = self._run_evolution_phase(
+                    top_hypotheses_for_evolution,
+                    meta_review_data,
                 )
+                self.hypotheses = evolved + remaining_hypotheses
 
                 # Re-run Reflection and Ranking on evolved hypotheses
                 self.hypotheses = self._run_reflection_phase(

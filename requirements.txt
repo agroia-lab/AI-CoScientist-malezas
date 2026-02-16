@@ -1,1 +1,3 @@
 swarms
+loguru
+python-dotenv
