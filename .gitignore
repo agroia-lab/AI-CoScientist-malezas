@@ -8,7 +8,8 @@ __pycache__/
 .vscode/
 .vscode
 
-logs/
+logs/*
+!logs/agent_team_actions/
 ai_coscientist_states/
 agent_workspace/
 
