@@ -10,8 +10,7 @@ __version__ = "1.0.0"
 __author__ = "The Swarm Corporation"
 __description__ = "A multi-agent AI framework for collaborative scientific research, implementing tournament-based hypothesis evolution and peer review systems"
 
-from .main import (
-    AIScientistFramework,
+from .types import (
     Hypothesis,
     AgentRole,
     ReviewScores,
@@ -24,6 +23,7 @@ from .main import (
     ProximityAnalysisResult,
     TournamentJudgment,
 )
+from .main import AIScientistFramework
 
 __all__ = [
     "AIScientistFramework",

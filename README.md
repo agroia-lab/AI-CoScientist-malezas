@@ -81,7 +81,7 @@ Create a `.env` file with your API keys:
 ```bash
 OPENAI_API_KEY=your_openai_key_here
 ANTHROPIC_API_KEY=your_anthropic_key_here
-GOOGLE_API_KEY=your_google_key_here
+GEMINI_API_KEY=your_gemini_key_here
 ```
 
 

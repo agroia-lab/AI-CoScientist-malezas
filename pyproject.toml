@@ -27,7 +27,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.10"
-swarms = "*"
+swarms = ">=0.7,<1.0"
 loguru = "*"
 python-dotenv = "*"
 
