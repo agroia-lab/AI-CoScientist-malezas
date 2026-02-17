@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AI-CoScientist is a multi-agent AI framework for collaborative scientific research, implementing the "Towards an AI Co-Scientist" paper's methodology. It uses tournament-based hypothesis evolution with Elo ratings, peer review systems, and 8 specialized agents orchestrated through the `swarms` framework.
+AI-CoScientist is a multi-agent AI framework specialized for **integrated weed management (IWM) and precision farming** research, implementing the "Towards an AI Co-Scientist" paper's methodology. It uses tournament-based hypothesis evolution with Elo ratings, peer review systems with 11 review criteria (6 generic + 5 agronomy-specific), and 8 specialized agents orchestrated through the `swarms` framework.
 
 ## Commands
 
@@ -43,7 +43,7 @@ The entire framework lives in a single module: `ai_coscientist/main.py` (~2000 l
 Orchestrates 8 specialized `swarms.Agent` instances through a multi-phase research workflow:
 
 1. **Generation** → produces initial hypotheses
-2. **Reflection** → peer-reviews each hypothesis with structured scores (soundness, novelty, relevance, testability, clarity, impact)
+2. **Reflection** → peer-reviews each hypothesis with 11 structured scores (6 generic + 5 agronomy-specific; see Review Criteria below)
 3. **Ranking** → orders hypotheses by composite merit
 4. **Tournament** → pairwise comparisons with Elo rating updates (`k_factor=32`, base rating `1200`)
 5. **Meta-Review** → synthesizes cross-cutting insights
@@ -51,7 +51,30 @@ Orchestrates 8 specialized `swarms.Agent` instances through a multi-phase resear
 7. **Proximity** → clusters similar hypotheses, detects redundancy
 8. Steps 2-7 repeat for `max_iterations`
 
-### Key Data Structures (all in `main.py`)
+### Review Criteria (11 total)
+
+Defined in `types.py` (`ReviewScores` and `DetailedFeedback` TypedDicts).
+
+**Generic scientific criteria (1-5 each):**
+1. `scientific_soundness` — plausibility and consistency with existing knowledge
+2. `novelty` — originality of the proposed idea
+3. `relevance` — alignment with the stated research goal
+4. `testability` — amenability to empirical investigation
+5. `clarity` — precision and readability of the hypothesis
+6. `potential_impact` — scientific or practical significance if validated
+
+**Agronomy-specific criteria (1-5 each):**
+7. `statistical_rigor` — appropriateness of experimental design, sample size, and replication for field trials
+8. `field_feasibility` — practicality of conducting the experiment under real field conditions
+9. `spatial_scalability` — potential to scale from plot-level to farm or regional level
+10. `environmental_sustainability` — impact on soil health, biodiversity, water quality, and carbon footprint
+11. `agronomic_practicality` — compatibility with existing farming systems, equipment, and socio-economic constraints
+
+### Prompt Definitions
+
+Agent system prompts live in `ai_coscientist/prompts.py`. Each prompt function accepts an optional `custom_prompt` parameter (string or file path) via the `load_prompt()` helper. The default prompts are agronomy-specialized and contain explicit JSON output format instructions -- changes to prompt structure require updating the corresponding JSON parsing logic in `json_parser.py`.
+
+### Key Data Structures (all in `types.py`)
 
 - `Hypothesis` (dataclass) — tracks text, elo_rating, reviews, score, similarity_cluster_id, evolution_history, win/loss counts
 - `WorkflowResult`, `ExecutionMetrics` (TypedDict) — returned by `run_research_workflow()`
@@ -84,4 +107,4 @@ results = framework.run_research_workflow("Your research goal here")
 - **Line length: 70** (configured for both ruff and black)
 - Target Python 3.10+
 - Black with `preview = true`
-- All agents are constructed with detailed system prompts containing explicit JSON output format instructions — changes to prompt structure require updating the corresponding JSON parsing logic
+- All agents are constructed with detailed system prompts in `prompts.py` containing explicit JSON output format instructions -- changes to prompt structure require updating the corresponding JSON parsing logic in `json_parser.py`

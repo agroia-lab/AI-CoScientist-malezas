@@ -4,7 +4,7 @@
 
 [![Join our Discord](https://img.shields.io/badge/Discord-Join%20our%20server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/swarms-999382051935506503) [![Subscribe on YouTube](https://img.shields.io/badge/YouTube-Subscribe-red?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/@kyegomez3242) [![Connect on LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/kye-g-38759a207/) [![Follow on X.com](https://img.shields.io/badge/X.com-Follow-1DA1F2?style=for-the-badge&logo=x&logoColor=white)](https://x.com/kyegomezb)
 
-A multi-agent AI framework for collaborative scientific research, implementing the "Towards an AI Co-Scientist" methodology with tournament-based hypothesis evolution, peer review systems, and intelligent agent orchestration.
+A multi-agent AI framework specialized for **integrated weed management (IWM) and precision farming** research, implementing the "Towards an AI Co-Scientist" methodology with tournament-based hypothesis evolution, peer review systems, and intelligent agent orchestration. Hypotheses are evaluated using 11 review criteria (6 generic scientific + 5 agronomy-specific) to ensure domain relevance.
 
 ## Features
 
@@ -16,6 +16,31 @@ A multi-agent AI framework for collaborative scientific research, implementing t
 📈 **Execution Metrics**: Detailed performance tracking and agent timing analytics  
 💾 **State Persistence**: Save and resume research workflows with agent state management  
 🛡️ **Robust Error Handling**: Graceful fallbacks and recovery mechanisms for production reliability
+
+## Domain Specialization
+
+The framework is specialized for **agronomy and integrated weed management (IWM)** research. The peer review system evaluates hypotheses using 11 criteria:
+
+### Generic Scientific Criteria (1-5 each)
+
+| Criterion | Description |
+|---|---|
+| Scientific Soundness | Plausibility and consistency with existing knowledge |
+| Novelty | Originality of the proposed idea |
+| Relevance | Alignment with the stated research goal |
+| Testability | Amenability to empirical investigation |
+| Clarity | Precision and readability of the hypothesis |
+| Potential Impact | Scientific or practical significance if validated |
+
+### Agronomy-Specific Criteria (1-5 each)
+
+| Criterion | Description |
+|---|---|
+| Statistical Rigor | Appropriateness of experimental design, sample size, and spatial/temporal replication for field trials |
+| Field Feasibility | Practicality of conducting the proposed experiment under real field conditions |
+| Spatial Scalability | Potential to scale from plot-level to farm or regional level |
+| Environmental Sustainability | Impact on soil health, biodiversity, water quality, and carbon footprint |
+| Agronomic Practicality | Compatibility with existing farming systems, equipment, and socio-economic constraints |
 
 ## Architecture
 
@@ -92,7 +117,7 @@ from ai_coscientist import AIScientistFramework
 
 # Initialize the AI Co-scientist Framework
 ai_coscientist = AIScientistFramework(
-    model_name="gpt-4o-mini",
+    model_name="gemini/gemini-2.0-flash",
     max_iterations=3,
     hypotheses_per_generation=10,
     tournament_size=8,
@@ -100,8 +125,15 @@ ai_coscientist = AIScientistFramework(
     verbose=True
 )
 
-# Define your research goal
-research_goal = "Develop novel approaches for improving reasoning capabilities in large language models"
+# Define an agronomy / IWM research goal
+research_goal = (
+    "Develop novel integrated weed management strategies"
+    " combining site-specific herbicide application,"
+    " cover crop-based weed suppression, and"
+    " drone-based weed mapping to reduce herbicide"
+    " use by 50% while maintaining crop yield in"
+    " Mediterranean cereal-legume rotations"
+)
 
 # Run the research workflow
 results = ai_coscientist.run_research_workflow(research_goal)
@@ -112,6 +144,13 @@ for i, hypothesis in enumerate(results['top_ranked_hypotheses'], 1):
     print(f"{i}. {hypothesis['text']}")
     print(f"   Elo Rating: {hypothesis['elo_rating']}")
     print(f"   Win Rate: {hypothesis['win_rate']}%")
+
+    # Display agronomy-specific review scores
+    if hypothesis['reviews']:
+        scores = hypothesis['reviews'][-1].get('scores', {})
+        for key, val in scores.items():
+            label = key.replace('_', ' ').title()
+            print(f"   {label}: {val}/5")
 ```
 
 ---

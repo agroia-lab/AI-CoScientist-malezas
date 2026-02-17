@@ -42,6 +42,11 @@ class ReviewScores(TypedDict):
     testability: int
     clarity: int
     potential_impact: int
+    statistical_rigor: int
+    field_feasibility: int
+    spatial_scalability: int
+    environmental_sustainability: int
+    agronomic_practicality: int
 
 
 class DetailedFeedback(TypedDict):
@@ -53,6 +58,11 @@ class DetailedFeedback(TypedDict):
     testability: str
     clarity: str
     potential_impact: str
+    statistical_rigor: str
+    field_feasibility: str
+    spatial_scalability: str
+    environmental_sustainability: str
+    agronomic_practicality: str
 
 
 class HypothesisReview(TypedDict):

@@ -115,3 +115,15 @@ pytest tests/ -v
 - **State persistence**: `save_state()` and `load_state()` serialize
   to `./ai_coscientist_states/`. Changes to data structures in
   `types.py` may break saved state deserialization.
+
+- **Agronomy specialization**: The framework is specialized for
+  integrated weed management (IWM) and precision farming research.
+  The peer review system uses 11 review criteria: 6 generic scientific
+  criteria (scientific soundness, novelty, relevance, testability,
+  clarity, potential impact) and 5 agronomy-specific criteria
+  (statistical rigor, field feasibility, spatial scalability,
+  environmental sustainability, agronomic practicality). These are
+  defined in `types.py` (`ReviewScores` and `DetailedFeedback`
+  TypedDicts) and referenced in the reflection agent prompt in
+  `prompts.py`. If you add or modify criteria, update both files
+  and the corresponding parsing logic in `json_parser.py`.

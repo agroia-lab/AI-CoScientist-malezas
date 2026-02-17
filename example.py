@@ -1,67 +1,64 @@
 import json
+
 from ai_coscientist import AIScientistFramework
 
 ai_coscientist = AIScientistFramework(
-    model_name="gemini/gemini-2.0-flash",  # Or "gemini/gemini-2.0-flash" if you have access
-    max_iterations=2,  # Reduced iterations for example run
-    verbose=False,  # Set to True for detailed logs
+    model_name="gemini/gemini-2.0-flash",
+    max_iterations=2,
+    verbose=False,
     hypotheses_per_generation=10,
     tournament_size=8,
     evolution_top_k=3,
 )
 
-# Define a research goal
-research_goal = "Develop novel hypotheses for Incentivizing Reasoning Capability in LLMs via Reinforcement Learning"
+# Agronomy research goal
+research_goal = (
+    "Develop novel integrated weed management strategies"
+    " combining site-specific herbicide application,"
+    " cover crop-based weed suppression, and"
+    " drone-based weed mapping to reduce herbicide"
+    " use by 50% while maintaining crop yield in"
+    " Mediterranean cereal-legume rotations"
+)
 
-# Run the research workflow
 results = ai_coscientist.run_research_workflow(research_goal)
 
-# Output the results
-print("\n--- Research Workflow Results ---")
+# Output results
+print("\n--- IWM Research Workflow Results ---")
 if "error" in results:
-    print(f"Error during workflow: {results['error']}")
+    print(f"Error: {results['error']}")
 else:
     print("\n--- Top Ranked Hypotheses ---")
-    for hy in results["top_ranked_hypotheses"]:
-        print(f"- Hypothesis: {hy['text']}")
-        print(f"  Elo Rating: {hy['elo_rating']}")
-        print(f"  Score: {hy['score']:.2f}")
+    for i, hy in enumerate(results["top_ranked_hypotheses"], 1):
+        print(f"\n{'='*60}")
+        print(f"Hypothesis {i}")
+        print(f"{'='*60}")
+        print(f"Text: {hy['text']}")
+        print(f"Elo Rating: {hy['elo_rating']}")
+        print(f"Score: {hy['score']:.2f}")
         print(
-            f"  Reviews: {hy['reviews'][-1].get('review_summary') if hy['reviews'] else 'No reviews'}"
-        )  # Print review summary
-        print(
-            f"  Similarity Cluster ID: {hy['similarity_cluster_id']}"
+            f"Win Rate: {hy['win_rate']}%"
+            f" ({hy['total_matches']} matches)"
         )
-        print(
-            f"  Win Rate: {hy['win_rate']}% (Matches: {hy['total_matches']})"
-        )
-        print("-" * 30)
+        if hy["reviews"]:
+            last_review = hy["reviews"][-1]
+            scores = last_review.get("scores", {})
+            print("  Review Scores:")
+            for k, v in scores.items():
+                label = k.replace("_", " ").title()
+                print(f"    {label}: {v}/5")
 
-    print("\n--- Meta-Review Insights Summary ---")
-    meta_review_summary = results["meta_review_insights"].get(
-        "meta_review_summary", "No meta-review summary available."
+    print("\n--- Meta-Review Insights ---")
+    summary = results["meta_review_insights"].get(
+        "meta_review_summary",
+        "No summary available.",
     )
-    print(
-        meta_review_summary[:500] + "..."
-        if len(meta_review_summary) > 500
-        else meta_review_summary
-    )  # Print truncated or full summary
+    print(summary[:500] + "..." if len(summary) > 500 else summary)
 
     print("\n--- Execution Metrics ---")
     print(json.dumps(results["execution_metrics"], indent=2))
-    print(
-        f"\nTotal Workflow Time: {results['total_workflow_time']:.2f} seconds"
-    )
+    print(f"\nTotal Time:" f" {results['total_workflow_time']:.2f}s")
 
-    if (
-        ai_coscientist.verbose
-    ):  # Only print full history if verbose is on, can be very long
-        print("\n--- Conversation History (Verbose Mode) ---")
-        print(
-            results["conversation_history"][:1000] + "..."
-        )  # Print first 1000 chars of history
-
-# Save agent states (optional)
 try:
     ai_coscientist.save_state()
 except Exception as e:
