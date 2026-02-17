@@ -24,16 +24,8 @@ from swarms.structs.conversation import Conversation
 from loguru import logger
 
 from .types import (
-    AgentRole,
-    ReviewScores,
-    DetailedFeedback,
-    HypothesisReview,
     AgentExecutionMetrics,
     ExecutionMetrics,
-    SimilarHypothesis,
-    SimilarityCluster,
-    ProximityAnalysisResult,
-    TournamentJudgment,
     WorkflowResult,
     Hypothesis,
 )
@@ -47,7 +39,15 @@ from .prompts import (
     get_tournament_prompt,
     get_supervisor_prompt,
 )
+from .protocols import AgentInterface
 from .json_parser import safely_parse_json
+from .elo import (
+    random_pairs,
+    round_robin_pairs,
+    swiss_pairs,
+    swiss_rounds,
+    validate_tournament_mode,
+)
 
 load_dotenv()
 
@@ -99,6 +99,8 @@ class AIScientistFramework:
         evolution_top_k: int = 3,
         random_seed: Optional[int] = None,
         max_conversation_history: int = 500,
+        tournament_mode: str = "random",
+        custom_prompts: Optional[Dict[str, str]] = None,
     ) -> None:
         """Initialize the AIScientistFramework system with configuration parameters."""
         # Type validation
@@ -122,9 +124,7 @@ class AIScientistFramework:
             if base_path
             else Path("./ai_coscientist_states")
         )
-        self.base_path.mkdir(
-            exist_ok=True, parents=True, mode=0o700
-        )
+        self.base_path.mkdir(exist_ok=True, parents=True, mode=0o700)
         self.verbose: bool = verbose
         self.conversation: Conversation = Conversation()
         self.hypotheses: List[Hypothesis] = []
@@ -135,19 +135,18 @@ class AIScientistFramework:
             hypotheses_per_generation
         )
         self.evolution_top_k: int = evolution_top_k
+        self.tournament_mode: str = validate_tournament_mode(
+            tournament_mode
+        )
 
         # Reproducibility
         self.random_seed: Optional[int] = random_seed
         if random_seed is not None:
             random.seed(random_seed)
-            logger.info(
-                f"Random seed set to {random_seed}"
-            )
+            logger.info(f"Random seed set to {random_seed}")
 
         # Conversation history bounding
-        self.max_conversation_history: int = (
-            max_conversation_history
-        )
+        self.max_conversation_history: int = max_conversation_history
 
         # Execution metrics
         self.start_time: Optional[float] = None
@@ -160,6 +159,9 @@ class AIScientistFramework:
             "agent_execution_times": {},
         }
 
+        # Custom prompts (keyed by agent role name)
+        self.custom_prompts: Dict[str, str] = custom_prompts or {}
+
         # Initialize agents
         self._init_agents()
         logger.info(
@@ -168,10 +170,13 @@ class AIScientistFramework:
 
     def _init_agents(self) -> None:
         """Initialize all specialized agents with their roles and prompts."""
+        cp = self.custom_prompts
         try:
-            self.generation_agent: Agent = Agent(
+            self.generation_agent: AgentInterface = Agent(
                 agent_name="HypothesisGenerator",
-                system_prompt=get_generation_prompt(),
+                system_prompt=get_generation_prompt(
+                    cp.get("generation")
+                ),
                 model_name=self.model_name,
                 max_loops=1,
                 saved_state_path=str(
@@ -179,9 +184,11 @@ class AIScientistFramework:
                 ),
                 verbose=self.verbose,
             )
-            self.reflection_agent: Agent = Agent(
+            self.reflection_agent: AgentInterface = Agent(
                 agent_name="HypothesisReflector",
-                system_prompt=get_reflection_prompt(),
+                system_prompt=get_reflection_prompt(
+                    cp.get("reflection")
+                ),
                 model_name=self.model_name,
                 max_loops=1,
                 saved_state_path=str(
@@ -189,9 +196,9 @@ class AIScientistFramework:
                 ),
                 verbose=self.verbose,
             )
-            self.ranking_agent: Agent = Agent(
+            self.ranking_agent: AgentInterface = Agent(
                 agent_name="HypothesisRanker",
-                system_prompt=get_ranking_prompt(),
+                system_prompt=get_ranking_prompt(cp.get("ranking")),
                 model_name=self.model_name,
                 max_loops=1,
                 saved_state_path=str(
@@ -199,9 +206,11 @@ class AIScientistFramework:
                 ),
                 verbose=self.verbose,
             )
-            self.evolution_agent: Agent = Agent(
+            self.evolution_agent: AgentInterface = Agent(
                 agent_name="HypothesisEvolver",
-                system_prompt=get_evolution_prompt(),
+                system_prompt=get_evolution_prompt(
+                    cp.get("evolution")
+                ),
                 model_name=self.model_name,
                 max_loops=1,
                 saved_state_path=str(
@@ -209,9 +218,11 @@ class AIScientistFramework:
                 ),
                 verbose=self.verbose,
             )
-            self.meta_review_agent: Agent = Agent(
+            self.meta_review_agent: AgentInterface = Agent(
                 agent_name="MetaReviewer",
-                system_prompt=get_meta_review_prompt(),
+                system_prompt=get_meta_review_prompt(
+                    cp.get("meta_review")
+                ),
                 model_name=self.model_name,
                 max_loops=1,
                 saved_state_path=str(
@@ -219,9 +230,11 @@ class AIScientistFramework:
                 ),
                 verbose=self.verbose,
             )
-            self.proximity_agent: Agent = Agent(
+            self.proximity_agent: AgentInterface = Agent(
                 agent_name="ProximityAnalyzer",
-                system_prompt=get_proximity_prompt(),
+                system_prompt=get_proximity_prompt(
+                    cp.get("proximity")
+                ),
                 model_name=self.model_name,
                 max_loops=1,
                 saved_state_path=str(
@@ -229,9 +242,11 @@ class AIScientistFramework:
                 ),
                 verbose=self.verbose,
             )
-            self.tournament_agent: Agent = Agent(
+            self.tournament_agent: AgentInterface = Agent(
                 agent_name="TournamentJudge",
-                system_prompt=get_tournament_prompt(),
+                system_prompt=get_tournament_prompt(
+                    cp.get("tournament")
+                ),
                 model_name=self.model_name,
                 max_loops=1,
                 saved_state_path=str(
@@ -239,9 +254,11 @@ class AIScientistFramework:
                 ),
                 verbose=self.verbose,
             )
-            self.supervisor_agent: Agent = Agent(
+            self.supervisor_agent: AgentInterface = Agent(
                 agent_name="Supervisor",
-                system_prompt=get_supervisor_prompt(),
+                system_prompt=get_supervisor_prompt(
+                    cp.get("supervisor")
+                ),
                 model_name=self.model_name,
                 max_loops=1,
                 saved_state_path=str(
@@ -253,6 +270,123 @@ class AIScientistFramework:
         except Exception as e:
             logger.error(f"Failed to initialize agents: {e}")
             raise
+
+    # Maps AgentRole value -> framework attribute name
+    _ROLE_TO_ATTR: Dict[str, str] = {
+        "generation": "generation_agent",
+        "reflection": "reflection_agent",
+        "ranking": "ranking_agent",
+        "evolution": "evolution_agent",
+        "meta_review": "meta_review_agent",
+        "proximity": "proximity_agent",
+        "tournament": "tournament_agent",
+        "supervisor": "supervisor_agent",
+    }
+
+    @classmethod
+    def from_custom_agents(
+        cls,
+        agents: Dict[str, "AgentInterface"],
+        **kwargs: Any,
+    ) -> "AIScientistFramework":
+        """Create a framework with user-supplied agents.
+
+        *agents* maps agent role names (the values of
+        :class:`AgentRole`, e.g. ``"generation"``,
+        ``"reflection"``, ...) to objects satisfying
+        :class:`AgentInterface`.
+
+        All eight roles must be provided.
+
+        Any extra *kwargs* are forwarded to
+        ``__init__`` (except ``custom_prompts``, which is
+        ignored because agents are already constructed).
+
+        Returns:
+            A fully initialised framework instance.
+
+        Raises:
+            ValueError: If any required role is missing.
+            TypeError: If an agent does not satisfy
+                :class:`AgentInterface`.
+        """
+        required = set(cls._ROLE_TO_ATTR)
+        provided = set(agents)
+        missing = required - provided
+        if missing:
+            raise ValueError(
+                f"Missing agent roles: {sorted(missing)}"
+            )
+
+        for role, agent in agents.items():
+            if not isinstance(agent, AgentInterface):
+                raise TypeError(
+                    f"Agent for role '{role}' does not "
+                    f"satisfy AgentInterface"
+                )
+
+        # Build the instance without calling _init_agents
+        kwargs.pop("custom_prompts", None)
+        instance = cls.__new__(cls)
+
+        # Replay the __init__ setup (minus _init_agents)
+        model_name = kwargs.pop("model_name", "custom")
+        max_iterations = kwargs.pop("max_iterations", 3)
+        base_path = kwargs.pop("base_path", None)
+        verbose = kwargs.pop("verbose", False)
+        tournament_size = kwargs.pop("tournament_size", 8)
+        hypotheses_per_generation = kwargs.pop(
+            "hypotheses_per_generation", 10
+        )
+        evolution_top_k = kwargs.pop("evolution_top_k", 3)
+        random_seed = kwargs.pop("random_seed", None)
+        max_conversation_history = kwargs.pop(
+            "max_conversation_history", 500
+        )
+        tournament_mode = kwargs.pop("tournament_mode", "random")
+
+        instance.model_name = model_name
+        instance.max_iterations = max_iterations
+        instance.base_path = (
+            Path(base_path)
+            if base_path
+            else Path("./ai_coscientist_states")
+        )
+        instance.base_path.mkdir(
+            exist_ok=True, parents=True, mode=0o700
+        )
+        instance.verbose = verbose
+        instance.conversation = Conversation()
+        instance.hypotheses: List[Hypothesis] = []
+        instance.tournament_size = tournament_size
+        instance.hypotheses_per_generation = hypotheses_per_generation
+        instance.evolution_top_k = evolution_top_k
+        instance.tournament_mode = validate_tournament_mode(
+            tournament_mode
+        )
+        instance.random_seed = random_seed
+        if random_seed is not None:
+            random.seed(random_seed)
+        instance.max_conversation_history = max_conversation_history
+        instance.start_time = None
+        instance.execution_metrics = {
+            "total_time": 0.0,
+            "hypothesis_count": 0,
+            "reviews_count": 0,
+            "tournaments_count": 0,
+            "evolutions_count": 0,
+            "agent_execution_times": {},
+        }
+        instance.custom_prompts = {}
+
+        # Inject user-supplied agents
+        for role, attr in cls._ROLE_TO_ATTR.items():
+            setattr(instance, attr, agents[role])
+
+        logger.info(
+            "AIScientistFramework created with " "custom agents"
+        )
+        return instance
 
     def _safely_parse_json(self, json_str: str) -> Dict[str, Any]:
         """
@@ -317,9 +451,7 @@ class AIScientistFramework:
         try:
             history = self.conversation.conversation_history
             if len(history) > self.max_conversation_history:
-                excess = (
-                    len(history) - self.max_conversation_history
-                )
+                excess = len(history) - self.max_conversation_history
                 del history[:excess]
                 logger.debug(
                     f"Pruned {excess} old conversation entries"
@@ -940,16 +1072,9 @@ class AIScientistFramework:
             json.dumps({"hypotheses_texts": hypothesis_texts})
         )
 
-        if (
-            not proximity_response
-            or not proximity_response.strip()
-        ):
-            logger.warning(
-                "Proximity agent returned empty response"
-            )
-            proximity_response = (
-                '{"similarity_clusters": []}'
-            )
+        if not proximity_response or not proximity_response.strip():
+            logger.warning("Proximity agent returned empty response")
+            proximity_response = '{"similarity_clusters": []}'
 
         self.conversation.add(
             role=self.proximity_agent.agent_name,
@@ -1009,6 +1134,34 @@ class AIScientistFramework:
         )
         return hypotheses
 
+    def _generate_pairings(
+        self, hypotheses: List[Hypothesis]
+    ) -> List[tuple[int, int]]:
+        """Return index-based pairings for the current mode."""
+        rng = (
+            random.Random(self.random_seed)
+            if self.random_seed is not None
+            else None
+        )
+        mode = self.tournament_mode
+
+        if mode == "round_robin":
+            return round_robin_pairs(hypotheses)
+
+        if mode == "swiss":
+            n_rounds = swiss_rounds(len(hypotheses))
+            all_pairs: List[tuple[int, int]] = []
+            for _ in range(n_rounds):
+                ratings = [h.elo_rating for h in hypotheses]
+                all_pairs.extend(
+                    swiss_pairs(hypotheses, ratings, rng)
+                )
+            return all_pairs
+
+        # default: "random"
+        n_rounds = len(hypotheses) * 3
+        return random_pairs(hypotheses, n_rounds, rng)
+
     def _run_tournament_phase(
         self, hypotheses: List[Hypothesis]
     ) -> List[Hypothesis]:
@@ -1035,27 +1188,29 @@ class AIScientistFramework:
             random.seed(self.random_seed)
 
         start_time = time.time()
-        tournament_rounds = (
-            len(hypotheses) * 3
-        )  # 3 rounds per hypothesis
-        k_factor = 32  # Standard Elo K-factor (matches Hypothesis.update_elo default)
+        k_factor = 32
+
+        pairings = self._generate_pairings(hypotheses)
+        total_rounds = len(pairings)
 
         logger.info(
-            f"Starting tournament phase: {len(hypotheses)} hypotheses, {tournament_rounds} rounds"
+            f"Starting tournament phase ({self.tournament_mode}): "
+            f"{len(hypotheses)} hypotheses, "
+            f"{total_rounds} matches"
         )
 
         valid_rounds = 0
         skipped_rounds = 0
 
-        for round_num in range(tournament_rounds):
+        for round_num, (idx_a, idx_b) in enumerate(pairings):
             try:
-                # Randomly select two different hypotheses for a match
-                h1, h2 = random.sample(hypotheses, 2)
+                h1 = hypotheses[idx_a]
+                h2 = hypotheses[idx_b]
 
-                # Double-check they're different (random.sample should guarantee this)
                 if h1 is h2 or h1.text == h2.text:
                     logger.debug(
-                        f"Skipping round {round_num+1}: identical hypotheses selected"
+                        f"Skipping round {round_num+1}: "
+                        "identical hypotheses selected"
                     )
                     skipped_rounds += 1
                     continue
@@ -1063,13 +1218,14 @@ class AIScientistFramework:
                 tournament_input = {
                     "research_goal": (
                         "Compare hypotheses for tournament"
-                    ),  # General goal context
+                    ),
                     "hypothesis_a": h1.text,
                     "hypothesis_b": h2.text,
                 }
 
                 logger.debug(
-                    f"Tournament round {round_num+1}/{tournament_rounds}"
+                    f"Tournament round "
+                    f"{round_num+1}/{total_rounds}"
                 )
                 tournament_response = self.tournament_agent.run(
                     json.dumps(tournament_input)
@@ -1080,7 +1236,8 @@ class AIScientistFramework:
                     or not tournament_response.strip()
                 ):
                     logger.warning(
-                        f"Tournament agent returned empty response in round {round_num+1}"
+                        f"Tournament agent returned empty "
+                        f"response in round {round_num+1}"
                     )
                     skipped_rounds += 1
                     continue
@@ -1095,7 +1252,6 @@ class AIScientistFramework:
 
                 winner_choice = tournament_data.get("winner")
                 if winner_choice not in {"a", "b"}:
-                    # Attempt regex extraction as fallback
                     match = re.search(
                         r'"winner"\s*:\s*"?([ab])"?',
                         tournament_response,
@@ -1112,31 +1268,41 @@ class AIScientistFramework:
                     winner, loser = h2, h1
                 else:
                     logger.warning(
-                        f"Round {round_num+1}: Invalid winner choice '{winner_choice}', skipping Elo update"
+                        f"Round {round_num+1}: Invalid "
+                        f"winner choice "
+                        f"'{winner_choice}', "
+                        "skipping Elo update"
                     )
                     skipped_rounds += 1
                     continue
 
-                # Update Elo ratings
                 old_winner_elo = winner.elo_rating
                 old_loser_elo = loser.elo_rating
 
                 winner.update_elo(
-                    loser.elo_rating, win=True, k_factor=k_factor
+                    loser.elo_rating,
+                    win=True,
+                    k_factor=k_factor,
                 )
                 loser.update_elo(
-                    old_winner_elo, win=False, k_factor=k_factor
-                )  # Use old winner elo
+                    old_winner_elo,
+                    win=False,
+                    k_factor=k_factor,
+                )
 
                 valid_rounds += 1
                 logger.debug(
-                    f"Round {round_num+1}: Winner Elo: {old_winner_elo} -> {winner.elo_rating}, "
-                    f"Loser Elo: {old_loser_elo} -> {loser.elo_rating}"
+                    f"Round {round_num+1}: "
+                    f"Winner Elo: {old_winner_elo} "
+                    f"-> {winner.elo_rating}, "
+                    f"Loser Elo: {old_loser_elo} "
+                    f"-> {loser.elo_rating}"
                 )
 
             except Exception as e:
                 logger.error(
-                    f"Error in tournament round {round_num+1}: {e}"
+                    f"Error in tournament round "
+                    f"{round_num+1}: {e}"
                 )
                 skipped_rounds += 1
                 continue
@@ -1144,18 +1310,20 @@ class AIScientistFramework:
         self._time_execution("tournament", start_time)
         self.execution_metrics["tournaments_count"] += valid_rounds
         logger.success(
-            f"Tournament phase completed: {valid_rounds} valid rounds, {skipped_rounds} skipped"
+            f"Tournament phase completed: "
+            f"{valid_rounds} valid rounds, "
+            f"{skipped_rounds} skipped"
         )
 
-        # Rank hypotheses by Elo rating
         try:
             hypotheses.sort(key=lambda h: h.elo_rating, reverse=True)
             logger.debug(
-                f"Hypotheses sorted by Elo rating. Top rating: {hypotheses[0].elo_rating}"
+                f"Hypotheses sorted by Elo rating. "
+                f"Top rating: {hypotheses[0].elo_rating}"
             )
         except Exception as e:
             logger.error(
-                f"Error sorting hypotheses by Elo rating: {e}"
+                f"Error sorting hypotheses " f"by Elo rating: {e}"
             )
 
         return hypotheses
@@ -1209,18 +1377,14 @@ class AIScientistFramework:
                     "Generation phase produced 0 hypotheses even after fallbacks"
                 )
                 total_time = time.time() - self.start_time
-                self.execution_metrics["total_time"] = (
-                    total_time
-                )
+                self.execution_metrics["total_time"] = total_time
                 return {
                     "top_ranked_hypotheses": [],
                     "meta_review_insights": {},
                     "conversation_history": (
                         self.conversation.return_history_as_string()
                     ),
-                    "execution_metrics": (
-                        self.execution_metrics
-                    ),
+                    "execution_metrics": (self.execution_metrics),
                     "total_workflow_time": total_time,
                 }
 
@@ -1262,12 +1426,10 @@ class AIScientistFramework:
                 evo_count = min(
                     self.evolution_top_k, len(self.hypotheses)
                 )
-                top_hypotheses_for_evolution = (
-                    self.hypotheses[:evo_count]
-                )
-                remaining_hypotheses = (
-                    self.hypotheses[evo_count:]
-                )
+                top_hypotheses_for_evolution = self.hypotheses[
+                    :evo_count
+                ]
+                remaining_hypotheses = self.hypotheses[evo_count:]
                 logger.debug(
                     f"Evolving top {len(top_hypotheses_for_evolution)} hypotheses, preserving {len(remaining_hypotheses)} others"
                 )

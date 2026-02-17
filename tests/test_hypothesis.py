@@ -12,10 +12,12 @@ from unittest.mock import patch
 def _make_hypothesis(text="Test hypothesis", **kwargs):
     """Helper to create a Hypothesis with Agent mocked at import time."""
     from ai_coscientist.main import Hypothesis
+
     return Hypothesis(text=text, **kwargs)
 
 
 # -- update_elo -----------------------------------------------------------
+
 
 def test_elo_win_increases_rating():
     """Winning against an equal-rated opponent increases Elo."""
@@ -101,6 +103,7 @@ def test_elo_multiple_matches():
 
 
 # -- to_dict ---------------------------------------------------------------
+
 
 def test_to_dict_has_all_expected_keys():
     """to_dict() must contain all required keys."""

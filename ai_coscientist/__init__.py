@@ -23,6 +23,8 @@ from .types import (
     ProximityAnalysisResult,
     TournamentJudgment,
 )
+from .protocols import AgentInterface
+from .elo import calculate_elo_update
 from .main import AIScientistFramework
 
 __all__ = [
@@ -38,6 +40,8 @@ __all__ = [
     "SimilarityCluster",
     "ProximityAnalysisResult",
     "TournamentJudgment",
+    "AgentInterface",
+    "calculate_elo_update",
     "__version__",
     "__author__",
     "__description__",

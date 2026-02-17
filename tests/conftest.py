@@ -19,7 +19,9 @@ _mock_swarms_structs_conversation = MagicMock()
 
 sys.modules.setdefault("swarms", _mock_swarms)
 sys.modules.setdefault("swarms.structs", _mock_swarms_structs)
-sys.modules.setdefault("swarms.structs.conversation", _mock_swarms_structs_conversation)
+sys.modules.setdefault(
+    "swarms.structs.conversation", _mock_swarms_structs_conversation
+)
 
 # Now it is safe to import from ai_coscientist
 import pytest

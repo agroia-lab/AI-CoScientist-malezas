@@ -12,6 +12,7 @@ import pytest
 
 # ---- Helpers -------------------------------------------------------------
 
+
 def _build_framework_with_agent_responses(**overrides):
     """Build a mocked framework with per-agent response overrides.
 
@@ -37,7 +38,9 @@ def _build_framework_with_agent_responses(**overrides):
 
         def _make_agent(**kwargs):
             agent = MagicMock()
-            agent.agent_name = kwargs.get("agent_name", "UnknownAgent")
+            agent.agent_name = kwargs.get(
+                "agent_name", "UnknownAgent"
+            )
             agent.run = MagicMock(return_value="{}")
             agents_created.append(agent)
             return agent
@@ -59,12 +62,15 @@ def _build_framework_with_agent_responses(**overrides):
 
         for short_name, agent_name in agent_name_map.items():
             if short_name in overrides and agent_name in real_map:
-                real_map[agent_name].run.return_value = overrides[short_name]
+                real_map[agent_name].run.return_value = overrides[
+                    short_name
+                ]
 
         return fw
 
 
 # ---- Empty / invalid research goal ---------------------------------------
+
 
 def test_empty_research_goal_raises_value_error():
     """Empty string research goal raises ValueError."""
@@ -113,28 +119,56 @@ def test_non_string_research_goal_raises():
 
 # ---- Generation returns 0 hypotheses ------------------------------------
 
+
 def test_generation_returns_zero_hypotheses_uses_fallback():
     """When generation agent returns 0 hypotheses, fallback creates basic ones."""
     # Both initial and fallback generation return empty lists,
     # so the "last resort" manual hypotheses are used.
     fw = _build_framework_with_agent_responses(
-        supervisor=json.dumps({"workflow_plan": {"generation_phase": {"focus_areas": ["test"]}}}),
+        supervisor=json.dumps(
+            {
+                "workflow_plan": {
+                    "generation_phase": {"focus_areas": ["test"]}
+                }
+            }
+        ),
         generation=json.dumps({"hypotheses": []}),
-        reflection=json.dumps({"overall_score": 0.5, "review_summary": "OK"}),
+        reflection=json.dumps(
+            {"overall_score": 0.5, "review_summary": "OK"}
+        ),
         ranking=json.dumps({"ranked_hypotheses": []}),
-        tournament=json.dumps({"winner": "a", "judgment_explanation": {}, "decision_summary": "A wins"}),
-        evolution=json.dumps({"refined_hypothesis_text": "Refined", "refinement_summary": "Improved"}),
+        tournament=json.dumps(
+            {
+                "winner": "a",
+                "judgment_explanation": {},
+                "decision_summary": "A wins",
+            }
+        ),
+        evolution=json.dumps(
+            {
+                "refined_hypothesis_text": "Refined",
+                "refinement_summary": "Improved",
+            }
+        ),
         meta_review=json.dumps({"meta_review_summary": "OK"}),
-        proximity=json.dumps({"similarity_clusters": [], "diversity_assessment": "OK"}),
+        proximity=json.dumps(
+            {"similarity_clusters": [], "diversity_assessment": "OK"}
+        ),
     )
-    result = fw.run_research_workflow("Investigate neural scaling laws")
+    result = fw.run_research_workflow(
+        "Investigate neural scaling laws"
+    )
     # Should still complete without error
     assert isinstance(result, dict)
     # The fallback creates exactly 3 basic hypotheses
-    assert result.get("execution_metrics", {}).get("hypothesis_count", 0) >= 0
+    assert (
+        result.get("execution_metrics", {}).get("hypothesis_count", 0)
+        >= 0
+    )
 
 
 # ---- All agents return empty strings ------------------------------------
+
 
 def test_all_agents_return_empty_no_crash():
     """Workflow completes (with fallbacks) even when all agents return empty."""
@@ -148,7 +182,9 @@ def test_all_agents_return_empty_no_crash():
         meta_review="",
         proximity="",
     )
-    result = fw.run_research_workflow("Investigate neural scaling laws")
+    result = fw.run_research_workflow(
+        "Investigate neural scaling laws"
+    )
     assert isinstance(result, dict)
     # Should have the basic structure even in degraded mode
     assert "execution_metrics" in result
@@ -157,19 +193,53 @@ def test_all_agents_return_empty_no_crash():
 
 # ---- Single hypothesis: tournament returns it unchanged ------------------
 
+
 def test_single_hypothesis_tournament_returns_unchanged():
     """Tournament with <2 hypotheses returns the single one unchanged."""
     fw = _build_framework_with_agent_responses(
-        supervisor=json.dumps({"workflow_plan": {"generation_phase": {"focus_areas": ["test"]}}}),
-        generation=json.dumps({"hypotheses": [{"text": "Only hypothesis"}]}),
-        reflection=json.dumps({"overall_score": 0.9, "review_summary": "Excellent"}),
-        ranking=json.dumps({"ranked_hypotheses": [{"text": "Only hypothesis", "overall_score": 0.9}]}),
-        tournament=json.dumps({"winner": "a", "judgment_explanation": {}, "decision_summary": "A wins"}),
-        evolution=json.dumps({"refined_hypothesis_text": "Only hypothesis refined", "refinement_summary": "Refined"}),
-        meta_review=json.dumps({"meta_review_summary": "Single hypothesis reviewed"}),
-        proximity=json.dumps({"similarity_clusters": [], "diversity_assessment": "N/A"}),
+        supervisor=json.dumps(
+            {
+                "workflow_plan": {
+                    "generation_phase": {"focus_areas": ["test"]}
+                }
+            }
+        ),
+        generation=json.dumps(
+            {"hypotheses": [{"text": "Only hypothesis"}]}
+        ),
+        reflection=json.dumps(
+            {"overall_score": 0.9, "review_summary": "Excellent"}
+        ),
+        ranking=json.dumps(
+            {
+                "ranked_hypotheses": [
+                    {"text": "Only hypothesis", "overall_score": 0.9}
+                ]
+            }
+        ),
+        tournament=json.dumps(
+            {
+                "winner": "a",
+                "judgment_explanation": {},
+                "decision_summary": "A wins",
+            }
+        ),
+        evolution=json.dumps(
+            {
+                "refined_hypothesis_text": "Only hypothesis refined",
+                "refinement_summary": "Refined",
+            }
+        ),
+        meta_review=json.dumps(
+            {"meta_review_summary": "Single hypothesis reviewed"}
+        ),
+        proximity=json.dumps(
+            {"similarity_clusters": [], "diversity_assessment": "N/A"}
+        ),
     )
-    result = fw.run_research_workflow("Test single hypothesis scenario")
+    result = fw.run_research_workflow(
+        "Test single hypothesis scenario"
+    )
     assert isinstance(result, dict)
     # Should have exactly 1 hypothesis in the results
     assert len(result["top_ranked_hypotheses"]) == 1
@@ -177,11 +247,20 @@ def test_single_hypothesis_tournament_returns_unchanged():
 
 # ---- Agents returning malformed JSON ------------------------------------
 
+
 def test_agents_returning_malformed_json_no_crash():
     """Workflow survives agents returning non-JSON garbage."""
     fw = _build_framework_with_agent_responses(
         supervisor="not json at all",
-        generation=json.dumps({"hypotheses": [{"text": "H1"}, {"text": "H2"}, {"text": "H3"}]}),
+        generation=json.dumps(
+            {
+                "hypotheses": [
+                    {"text": "H1"},
+                    {"text": "H2"},
+                    {"text": "H3"},
+                ]
+            }
+        ),
         reflection="broken {json",
         ranking="also broken",
         tournament="nope",

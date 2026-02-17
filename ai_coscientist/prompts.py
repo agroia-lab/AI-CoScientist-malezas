@@ -1,11 +1,41 @@
 """Agent prompt definitions for the AI-CoScientist framework.
 
 Each function returns the system prompt for a specific agent role.
+Prompts can be customized by passing a string or file path.
 """
 
+import os
+from typing import Callable, Optional
 
-def get_generation_prompt() -> str:
-    """Prompt for the Hypothesis Generation Agent."""
+
+def load_prompt(
+    custom: Optional[str],
+    default_fn: Callable[[], str],
+) -> str:
+    """Return the appropriate prompt string.
+
+    Parameters
+    ----------
+    custom:
+        * ``None`` -> use the built-in default prompt.
+        * A path to an existing file -> read & return
+          its contents.
+        * Any other non-empty string -> return it as-is.
+    default_fn:
+        Zero-arg callable that returns the built-in
+        default prompt text.
+    """
+    if custom is None:
+        return default_fn()
+    if isinstance(custom, str) and custom.strip():
+        if os.path.isfile(custom):
+            with open(custom, "r", encoding="utf-8") as f:
+                return f.read()
+        return custom
+    return default_fn()
+
+
+def _default_generation_prompt() -> str:
     return """You are a Hypothesis Generation Agent in an AI Co-scientist framework.
 Your role is to generate novel and relevant research hypotheses based on a given research goal.
 
@@ -44,8 +74,14 @@ Example JSON Output:
 """
 
 
-def get_reflection_prompt() -> str:
-    """Prompt for the Hypothesis Reflection Agent (Reviewer)."""
+def get_generation_prompt(
+    custom_prompt: Optional[str] = None,
+) -> str:
+    """Prompt for the Hypothesis Generation Agent."""
+    return load_prompt(custom_prompt, _default_generation_prompt)
+
+
+def _default_reflection_prompt() -> str:
     return """You are a Hypothesis Reflection Agent, acting as a scientific peer reviewer.
 Your task is to review and critique research hypotheses for correctness, novelty, quality, and potential safety/ethical concerns.
 
@@ -95,8 +131,14 @@ Example JSON Output (for a single hypothesis):
 """
 
 
-def get_ranking_prompt() -> str:
-    """Prompt for the Hypothesis Ranking Agent."""
+def get_reflection_prompt(
+    custom_prompt: Optional[str] = None,
+) -> str:
+    """Prompt for the Hypothesis Reflection Agent (Reviewer)."""
+    return load_prompt(custom_prompt, _default_reflection_prompt)
+
+
+def _default_ranking_prompt() -> str:
     return """You are a Hypothesis Ranking Agent. Your role is to rank a set of research hypotheses based on their review scores and other relevant criteria.
 
 Rank the hypotheses from highest to lowest quality based on:
@@ -132,8 +174,14 @@ Example JSON Output:
 """
 
 
-def get_evolution_prompt() -> str:
-    """Prompt for the Hypothesis Evolution Agent (Refiner)."""
+def get_ranking_prompt(
+    custom_prompt: Optional[str] = None,
+) -> str:
+    """Prompt for the Hypothesis Ranking Agent."""
+    return load_prompt(custom_prompt, _default_ranking_prompt)
+
+
+def _default_evolution_prompt() -> str:
     return """You are a Hypothesis Evolution Agent. Your task is to refine and improve the top-ranked research hypotheses based on the reviews and meta-review insights.
 
 For each hypothesis, carefully analyze the review feedback, meta-review insights, and then apply the following approaches to refine the hypothesis:
@@ -193,8 +241,14 @@ Example JSON Output (for a single hypothesis):
 """
 
 
-def get_meta_review_prompt() -> str:
-    """Prompt for the Meta-Review Agent."""
+def get_evolution_prompt(
+    custom_prompt: Optional[str] = None,
+) -> str:
+    """Prompt for the Hypothesis Evolution Agent (Refiner)."""
+    return load_prompt(custom_prompt, _default_evolution_prompt)
+
+
+def _default_meta_review_prompt() -> str:
     return """You are a Meta-Review Agent. Your role is to synthesize insights from all the reviews of the research hypotheses.
 
 Analyze all the reviews provided by the Reflection Agents across multiple hypotheses. Your goal is to:
@@ -272,8 +326,14 @@ Example JSON Output:
 """
 
 
-def get_proximity_prompt() -> str:
-    """Prompt for the Proximity Agent (Similarity Analysis)."""
+def get_meta_review_prompt(
+    custom_prompt: Optional[str] = None,
+) -> str:
+    """Prompt for the Meta-Review Agent."""
+    return load_prompt(custom_prompt, _default_meta_review_prompt)
+
+
+def _default_proximity_prompt() -> str:
     return """You are a Proximity Agent, focused on analyzing the similarity between research hypotheses.
 
 Your task is to identify hypotheses that are semantically similar or redundant to maintain diversity in the hypothesis pool.
@@ -330,8 +390,14 @@ Example JSON Output:
 """
 
 
-def get_tournament_prompt() -> str:
-    """Prompt for the Tournament Agent (for pairwise hypothesis comparison)."""
+def get_proximity_prompt(
+    custom_prompt: Optional[str] = None,
+) -> str:
+    """Prompt for the Proximity Agent (Similarity Analysis)."""
+    return load_prompt(custom_prompt, _default_proximity_prompt)
+
+
+def _default_tournament_prompt() -> str:
     return """You are a Tournament Judge Agent in an AI Co-scientist framework. Your role is to evaluate pairs of research hypotheses and determine which one is superior for addressing the given research goal.
 
 For each pair of hypotheses, carefully analyze and compare them based on the following criteria:
@@ -370,8 +436,14 @@ Example JSON Output:
 """
 
 
-def get_supervisor_prompt() -> str:
-    """Prompt for the Supervisor Agent (manages the overall workflow)."""
+def get_tournament_prompt(
+    custom_prompt: Optional[str] = None,
+) -> str:
+    """Prompt for the Tournament Agent (pairwise comparison)."""
+    return load_prompt(custom_prompt, _default_tournament_prompt)
+
+
+def _default_supervisor_prompt() -> str:
     return """You are a Supervisor Agent in an AI Co-scientist framework. Your role is to oversee the entire hypothesis generation and refinement workflow, ensuring coordination between specialized agents and optimizing the system's performance.
 
 Your responsibilities include:
@@ -457,3 +529,10 @@ Example JSON Output:
   }
 }
 """
+
+
+def get_supervisor_prompt(
+    custom_prompt: Optional[str] = None,
+) -> str:
+    """Prompt for the Supervisor Agent (workflow manager)."""
+    return load_prompt(custom_prompt, _default_supervisor_prompt)

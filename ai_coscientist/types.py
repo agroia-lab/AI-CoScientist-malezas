@@ -16,6 +16,8 @@ from typing import (
 
 from loguru import logger
 
+from .elo import calculate_elo_update
+
 
 class AgentRole(Enum):
     """Define the possible roles for agents in the AI co-scientist system."""
@@ -177,12 +179,8 @@ class Hypothesis:
             )
             return
 
-        expected_score = 1 / (
-            1 + 10 ** ((opponent_elo - self.elo_rating) / 400)
-        )
-        actual_score = 1.0 if win else 0.0
-        self.elo_rating += int(
-            k_factor * (actual_score - expected_score)
+        self.elo_rating = calculate_elo_update(
+            self.elo_rating, opponent_elo, win, k_factor
         )
 
         # Update win/loss count

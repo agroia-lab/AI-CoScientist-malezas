@@ -10,6 +10,7 @@ import json
 
 # -- Valid inputs ---------------------------------------------------------
 
+
 def test_valid_json_string(framework):
     """Plain valid JSON string returns the parsed dict."""
     result = framework._safely_parse_json('{"key": "value"}')
@@ -80,6 +81,7 @@ def test_json_with_array_values(framework):
 
 # -- Error / edge-case inputs --------------------------------------------
 
+
 def test_empty_string_returns_error(framework):
     """Empty string returns a dict with an 'error' key."""
     result = framework._safely_parse_json("")
@@ -112,7 +114,9 @@ def test_non_string_list_returns_error(framework):
 
 def test_string_with_no_json(framework):
     """Plain text with no JSON returns a dict with an 'error' key."""
-    result = framework._safely_parse_json("This is just plain text with no braces.")
+    result = framework._safely_parse_json(
+        "This is just plain text with no braces."
+    )
     assert "error" in result
 
 
