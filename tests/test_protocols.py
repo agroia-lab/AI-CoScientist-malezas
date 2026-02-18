@@ -76,7 +76,7 @@ def test_protocol_is_runtime_checkable():
 # -----------------------------------------------------------
 
 
-@patch("ai_coscientist.main.Agent")
+@patch("ai_coscientist.main.DirectLLMAgent")
 def test_from_custom_agents_creates_framework(
     _mock_agent,
 ):
@@ -88,7 +88,7 @@ def test_from_custom_agents_creates_framework(
     assert isinstance(fw, AIScientistFramework)
 
 
-@patch("ai_coscientist.main.Agent")
+@patch("ai_coscientist.main.DirectLLMAgent")
 def test_from_custom_agents_assigns_all_agents(
     _mock_agent,
 ):
@@ -107,7 +107,7 @@ def test_from_custom_agents_assigns_all_agents(
     assert fw.supervisor_agent is agents["supervisor"]
 
 
-@patch("ai_coscientist.main.Agent")
+@patch("ai_coscientist.main.DirectLLMAgent")
 def test_from_custom_agents_missing_role_raises(
     _mock_agent,
 ):
@@ -120,7 +120,7 @@ def test_from_custom_agents_missing_role_raises(
         AIScientistFramework.from_custom_agents(agents)
 
 
-@patch("ai_coscientist.main.Agent")
+@patch("ai_coscientist.main.DirectLLMAgent")
 def test_from_custom_agents_bad_agent_raises(
     _mock_agent,
 ):
@@ -134,7 +134,7 @@ def test_from_custom_agents_bad_agent_raises(
         AIScientistFramework.from_custom_agents(agents)
 
 
-@patch("ai_coscientist.main.Agent")
+@patch("ai_coscientist.main.DirectLLMAgent")
 def test_from_custom_agents_kwargs_forwarded(
     _mock_agent,
 ):
@@ -149,7 +149,7 @@ def test_from_custom_agents_kwargs_forwarded(
     assert fw.verbose is True
 
 
-@patch("ai_coscientist.main.Agent")
+@patch("ai_coscientist.main.DirectLLMAgent")
 def test_from_custom_agents_defaults(
     _mock_agent,
 ):
@@ -164,7 +164,7 @@ def test_from_custom_agents_defaults(
     assert fw.evolution_top_k == 3
 
 
-@patch("ai_coscientist.main.Agent")
+@patch("ai_coscientist.main.DirectLLMAgent")
 def test_custom_agent_run_is_callable(
     _mock_agent,
 ):

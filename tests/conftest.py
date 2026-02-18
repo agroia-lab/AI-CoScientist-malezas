@@ -1,36 +1,15 @@
 """Shared pytest fixtures for the AI-CoScientist test suite.
 
-All fixtures mock swarms.Agent so tests NEVER call real LLMs.
-The swarms package may not be installed in test environments, so we
-inject a fake module into sys.modules before anything imports it.
+All fixtures mock DirectLLMAgent so tests NEVER call real LLMs.
 """
 
-import sys
-from unittest.mock import MagicMock
-
-# ---- Inject fake swarms module BEFORE any ai_coscientist imports --------
-# This must happen at module level (not inside a fixture) because Python
-# caches module imports -- the first import wins.
-
-_mock_swarms = MagicMock()
-_mock_swarms.Agent = MagicMock()
-_mock_swarms_structs = MagicMock()
-_mock_swarms_structs_conversation = MagicMock()
-
-sys.modules.setdefault("swarms", _mock_swarms)
-sys.modules.setdefault("swarms.structs", _mock_swarms_structs)
-sys.modules.setdefault(
-    "swarms.structs.conversation", _mock_swarms_structs_conversation
-)
-
-# Now it is safe to import from ai_coscientist
 import pytest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 @pytest.fixture
 def mock_agent():
-    """Create a mock swarms.Agent that returns predefined JSON."""
+    """Create a mock agent that returns predefined JSON."""
     agent = MagicMock()
     agent.agent_name = "MockAgent"
     agent.run = MagicMock(
@@ -42,7 +21,9 @@ def mock_agent():
 @pytest.fixture
 def framework():
     """Create AIScientistFramework with all agents mocked."""
-    with patch("ai_coscientist.main.Agent") as MockAgent:
+    with patch(
+        "ai_coscientist.main.DirectLLMAgent"
+    ) as MockAgent:
         mock_instance = MagicMock()
         mock_instance.agent_name = "MockAgent"
         mock_instance.run = MagicMock(return_value="{}")

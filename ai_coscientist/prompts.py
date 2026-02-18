@@ -90,8 +90,12 @@ seasons) with long-term IWM system impact.
 Prioritize hypotheses that integrate at least two
 IWM pillars for synergistic weed management.
 
-Output your hypotheses in JSON format:
+IMPORTANT: Your entire response must be valid JSON only.
+No prose, no markdown, no code fences, no explanations.
+Start your response with { and end with }.
+It must be parseable by Python's json.loads().
 
+Respond with this exact JSON structure:
 {
   "hypotheses": [
     {
@@ -219,8 +223,12 @@ Overall score: 0.0-1.0 scale where:
 - 0.6-0.8: Very Good (minor revisions)
 - 0.8-1.0: Excellent (field-ready concept)
 
-Output your review in JSON format:
+IMPORTANT: Your entire response must be valid JSON only.
+No prose, no markdown, no code fences, no explanations.
+Start your response with { and end with }.
+It must be parseable by Python's json.loads().
 
+Respond with this exact JSON structure:
 {
   "hypothesis_text": "The hypothesis reviewed",
   "review_summary": "Overall summary",
@@ -318,8 +326,12 @@ Consider score consistency: a hypothesis with
 uniformly strong scores (4s across all criteria)
 may outrank one with mixed extremes (5s and 2s).
 
-Output the ranked hypotheses in JSON format:
+IMPORTANT: Your entire response must be valid JSON only.
+No prose, no markdown, no code fences, no explanations.
+Start your response with { and end with }.
+It must be parseable by Python's json.loads().
 
+Respond with this exact JSON structure:
 {
   "ranked_hypotheses": [
     {
@@ -429,8 +441,12 @@ Apply the following refinement strategies:
    - Integrate chemical precision with mechanical
      alternatives.
 
-Output refined hypotheses in JSON format:
+IMPORTANT: Your entire response must be valid JSON only.
+No prose, no markdown, no code fences, no explanations.
+Start your response with { and end with }.
+It must be parseable by Python's json.loads().
 
+Respond with this exact JSON structure:
 {
   "original_hypothesis_text": "Original text",
   "refined_hypothesis_text": "Refined text",
@@ -523,8 +539,12 @@ Perform the following analyses:
    - Recommend data-sharing opportunities across
      spatial scales.
 
-Output your meta-review in JSON format:
+IMPORTANT: Your entire response must be valid JSON only.
+No prose, no markdown, no code fences, no explanations.
+Start your response with { and end with }.
+It must be parseable by Python's json.loads().
 
+Respond with this exact JSON structure:
 {
   "meta_review_summary": "Overall summary of the
     IWM hypothesis portfolio",
@@ -630,8 +650,12 @@ For each cluster, assess:
 - Gaps where no hypotheses address a particular
   combination of tactic, scale, and weed type.
 
-Output findings in JSON format:
+IMPORTANT: Your entire response must be valid JSON only.
+No prose, no markdown, no code fences, no explanations.
+Start your response with { and end with }.
+It must be parseable by Python's json.loads().
 
+Respond with this exact JSON structure:
 {
   "similarity_clusters": [
     {
@@ -731,8 +755,12 @@ Decision guidelines:
 - Weight farmer adoption potential and field
   realism heavily in close comparisons.
 
-Output your judgment in JSON format:
+IMPORTANT: Your entire response must be valid JSON only.
+No prose, no markdown, no code fences, no explanations.
+Start your response with { and end with }.
+It must be parseable by Python's json.loads().
 
+Respond with this exact JSON structure:
 {
   "research_goal": "The research goal",
   "hypothesis_a": "Text of hypothesis A",
@@ -794,20 +822,18 @@ Your responsibilities:
    - Verify inclusion of both precision technology
      and conventional agronomic approaches.
 
-3. Quality Gates (reject hypotheses that):
-   - Ignore herbicide resistance management or
-     propose single-mode-of-action reliance without
-     resistance mitigation strategies.
-   - Lack statistical rigor: no specified error
-     distribution, no spatial autocorrelation
-     consideration, inadequate replication, or
-     missing experimental design.
-   - Propose unrealistic field designs: plots too
-     small for equipment, impossible timing within
-     crop calendars, prohibitive labor or cost.
-   - Neglect environmental sustainability: no
-     consideration of non-target effects, soil
-     health, or biodiversity.
+3. Hypothesis Quality Assessment (flag gaps in):
+   - Herbicide resistance management: single-mode-
+     of-action reliance should include mitigation
+     strategies.
+   - Statistical rigor: error distribution, spatial
+     autocorrelation, replication, and experimental
+     design must be specified.
+   - Field realism: plot size, equipment access,
+     timing within crop calendars, labor and cost.
+   - Environmental sustainability: non-target
+     effects, soil health, and biodiversity
+     impacts should be addressed.
 
 4. Prioritization Criteria:
    - Testable within 2-3 growing seasons using
@@ -830,8 +856,12 @@ Your responsibilities:
    - Ensure meta-review identifies portfolio-level
      gaps in pillar and scale coverage.
 
-Output your guidance in JSON format:
+IMPORTANT: Your entire response must be valid JSON only.
+No prose, no markdown, no code fences, no explanations.
+Start your response with { and end with }.
+It must be parseable by Python's json.loads().
 
+Respond with this exact JSON structure:
 {
   "research_goal_analysis": {
     "goal_summary": "IWM-focused restatement",

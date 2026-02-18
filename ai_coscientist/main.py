@@ -19,9 +19,9 @@ import os
 
 from dotenv import load_dotenv
 
-from swarms import Agent
-from swarms.structs.conversation import Conversation
 from loguru import logger
+
+from .llm_agent import DirectLLMAgent, SimpleConversation
 
 from .types import (
     AgentExecutionMetrics,
@@ -81,7 +81,7 @@ class AIScientistFramework:
         max_iterations (int): Maximum number of iterations for the research workflow.
         base_path (Path): Base path for saving agent states.
         verbose (bool): Enable verbose logging.
-        conversation (Conversation): Tracks the conversation history.
+        conversation: Tracks the conversation history.
         hypotheses (List[Hypothesis]): List to store generated hypotheses.
         tournament_size (int): Number of hypotheses to include in each tournament round.
         hypotheses_per_generation (int): Number of hypotheses to generate initially.
@@ -126,7 +126,7 @@ class AIScientistFramework:
         )
         self.base_path.mkdir(exist_ok=True, parents=True, mode=0o700)
         self.verbose: bool = verbose
-        self.conversation: Conversation = Conversation()
+        self.conversation = SimpleConversation()
         self.hypotheses: List[Hypothesis] = []
 
         # Tournament and evolution parameters
@@ -162,6 +162,17 @@ class AIScientistFramework:
         # Custom prompts (keyed by agent role name)
         self.custom_prompts: Dict[str, str] = custom_prompts or {}
 
+        # Enable JSON mode for OpenAI models (tasks now include "JSON" keyword)
+        _is_openai = any(
+            p in model_name.lower()
+            for p in ("gpt-", "o1-", "o3-", "o4-")
+        )
+        self._llm_args: Optional[Dict] = (
+            {"response_format": {"type": "json_object"}}
+            if _is_openai
+            else None
+        )
+
         # Initialize agents
         self._init_agents()
         logger.info(
@@ -172,99 +183,85 @@ class AIScientistFramework:
         """Initialize all specialized agents with their roles and prompts."""
         cp = self.custom_prompts
         try:
-            self.generation_agent: AgentInterface = Agent(
-                agent_name="HypothesisGenerator",
-                system_prompt=get_generation_prompt(
-                    cp.get("generation")
-                ),
-                model_name=self.model_name,
-                max_loops=1,
-                saved_state_path=str(
-                    self.base_path / "generation_agent_state.json"
-                ),
-                verbose=self.verbose,
+            self.generation_agent: AgentInterface = (
+                DirectLLMAgent(
+                    agent_name="HypothesisGenerator",
+                    system_prompt=get_generation_prompt(
+                        cp.get("generation")
+                    ),
+                    model_name=self.model_name,
+                    llm_args=self._llm_args,
+                )
             )
-            self.reflection_agent: AgentInterface = Agent(
-                agent_name="HypothesisReflector",
-                system_prompt=get_reflection_prompt(
-                    cp.get("reflection")
-                ),
-                model_name=self.model_name,
-                max_loops=1,
-                saved_state_path=str(
-                    self.base_path / "reflection_agent_state.json"
-                ),
-                verbose=self.verbose,
+            self.reflection_agent: AgentInterface = (
+                DirectLLMAgent(
+                    agent_name="HypothesisReflector",
+                    system_prompt=get_reflection_prompt(
+                        cp.get("reflection")
+                    ),
+                    model_name=self.model_name,
+                    llm_args=self._llm_args,
+                )
             )
-            self.ranking_agent: AgentInterface = Agent(
-                agent_name="HypothesisRanker",
-                system_prompt=get_ranking_prompt(cp.get("ranking")),
-                model_name=self.model_name,
-                max_loops=1,
-                saved_state_path=str(
-                    self.base_path / "ranking_agent_state.json"
-                ),
-                verbose=self.verbose,
+            self.ranking_agent: AgentInterface = (
+                DirectLLMAgent(
+                    agent_name="HypothesisRanker",
+                    system_prompt=get_ranking_prompt(
+                        cp.get("ranking")
+                    ),
+                    model_name=self.model_name,
+                    llm_args=self._llm_args,
+                )
             )
-            self.evolution_agent: AgentInterface = Agent(
-                agent_name="HypothesisEvolver",
-                system_prompt=get_evolution_prompt(
-                    cp.get("evolution")
-                ),
-                model_name=self.model_name,
-                max_loops=1,
-                saved_state_path=str(
-                    self.base_path / "evolution_agent_state.json"
-                ),
-                verbose=self.verbose,
+            self.evolution_agent: AgentInterface = (
+                DirectLLMAgent(
+                    agent_name="HypothesisEvolver",
+                    system_prompt=get_evolution_prompt(
+                        cp.get("evolution")
+                    ),
+                    model_name=self.model_name,
+                    llm_args=self._llm_args,
+                )
             )
-            self.meta_review_agent: AgentInterface = Agent(
-                agent_name="MetaReviewer",
-                system_prompt=get_meta_review_prompt(
-                    cp.get("meta_review")
-                ),
-                model_name=self.model_name,
-                max_loops=1,
-                saved_state_path=str(
-                    self.base_path / "meta_review_agent_state.json"
-                ),
-                verbose=self.verbose,
+            self.meta_review_agent: AgentInterface = (
+                DirectLLMAgent(
+                    agent_name="MetaReviewer",
+                    system_prompt=get_meta_review_prompt(
+                        cp.get("meta_review")
+                    ),
+                    model_name=self.model_name,
+                    llm_args=self._llm_args,
+                )
             )
-            self.proximity_agent: AgentInterface = Agent(
-                agent_name="ProximityAnalyzer",
-                system_prompt=get_proximity_prompt(
-                    cp.get("proximity")
-                ),
-                model_name=self.model_name,
-                max_loops=1,
-                saved_state_path=str(
-                    self.base_path / "proximity_agent_state.json"
-                ),
-                verbose=self.verbose,
+            self.proximity_agent: AgentInterface = (
+                DirectLLMAgent(
+                    agent_name="ProximityAnalyzer",
+                    system_prompt=get_proximity_prompt(
+                        cp.get("proximity")
+                    ),
+                    model_name=self.model_name,
+                    llm_args=self._llm_args,
+                )
             )
-            self.tournament_agent: AgentInterface = Agent(
-                agent_name="TournamentJudge",
-                system_prompt=get_tournament_prompt(
-                    cp.get("tournament")
-                ),
-                model_name=self.model_name,
-                max_loops=1,
-                saved_state_path=str(
-                    self.base_path / "tournament_agent_state.json"
-                ),
-                verbose=self.verbose,
+            self.tournament_agent: AgentInterface = (
+                DirectLLMAgent(
+                    agent_name="TournamentJudge",
+                    system_prompt=get_tournament_prompt(
+                        cp.get("tournament")
+                    ),
+                    model_name=self.model_name,
+                    llm_args=self._llm_args,
+                )
             )
-            self.supervisor_agent: AgentInterface = Agent(
-                agent_name="Supervisor",
-                system_prompt=get_supervisor_prompt(
-                    cp.get("supervisor")
-                ),
-                model_name=self.model_name,
-                max_loops=1,
-                saved_state_path=str(
-                    self.base_path / "supervisor_agent_state.json"
-                ),
-                verbose=self.verbose,
+            self.supervisor_agent: AgentInterface = (
+                DirectLLMAgent(
+                    agent_name="Supervisor",
+                    system_prompt=get_supervisor_prompt(
+                        cp.get("supervisor")
+                    ),
+                    model_name=self.model_name,
+                    llm_args=self._llm_args,
+                )
             )
             logger.success("All agents initialized successfully")
         except Exception as e:
@@ -356,7 +353,7 @@ class AIScientistFramework:
             exist_ok=True, parents=True, mode=0o700
         )
         instance.verbose = verbose
-        instance.conversation = Conversation()
+        instance.conversation = SimpleConversation()
         instance.hypotheses: List[Hypothesis] = []
         instance.tournament_size = tournament_size
         instance.hypotheses_per_generation = hypotheses_per_generation
@@ -486,18 +483,12 @@ class AIScientistFramework:
         )
 
         # Get research plan from supervisor
-        supervisor_input = {
-            "task": "plan_research",
-            "research_goal": research_goal,
-            "phase": "generation",
-            "parameters": {
-                "hypotheses_count": self.hypotheses_per_generation,
-                "diversity_target": "high",
-            },
-        }
         logger.debug("Requesting research plan from supervisor")
         supervisor_response = self.supervisor_agent.run(
-            json.dumps(supervisor_input)
+            f"Research goal: {research_goal}\n\n"
+            f"Generate {self.hypotheses_per_generation} "
+            f"diverse IWM hypotheses. "
+            f"Respond in JSON format."
         )
 
         # Handle empty responses from supervisor agent
@@ -514,18 +505,16 @@ class AIScientistFramework:
         supervisor_data = self._safely_parse_json(supervisor_response)
 
         # Run generation agent with supervisor guidance
-        generation_input = {
-            "research_goal": research_goal,
-            "supervisor_guidance": supervisor_data,
-            "required_hypotheses_count": (
-                self.hypotheses_per_generation
-            ),
-        }
         logger.debug(
             "Running hypothesis generation with supervisor guidance"
         )
         generation_response = self.generation_agent.run(
-            json.dumps(generation_input)
+            f"Research goal: {research_goal}\n\n"
+            f"Supervisor guidance:\n{json.dumps(supervisor_data, indent=2)}\n\n"
+            f"Generate exactly "
+            f"{self.hypotheses_per_generation} diverse "
+            f"IWM hypotheses. "
+            f"Respond in JSON format."
         )
 
         # Handle empty responses from agent
@@ -550,12 +539,10 @@ class AIScientistFramework:
                 "Generation Agent returned no hypotheses. Using fallback generation."
             )
             # Fallback to simpler generation prompt
-            fallback_input = {
-                "research_goal": research_goal,
-                "count": self.hypotheses_per_generation,
-            }
             fallback_response = self.generation_agent.run(
-                json.dumps(fallback_input)
+                f"Research goal: {research_goal}\n\n"
+                f"Generate {self.hypotheses_per_generation} "
+                f"hypotheses. Respond in JSON format."
             )
 
             # Handle empty fallback response
@@ -664,12 +651,14 @@ class AIScientistFramework:
                 continue
 
             try:
-                review_input = {"hypothesis_text": hypothesis.text}
                 logger.debug(
                     f"Reviewing hypothesis {i+1}/{len(hypotheses)}"
                 )
                 review_response = self.reflection_agent.run(
-                    json.dumps(review_input)
+                    f"Review the following hypothesis and "
+                    f"score it on all 11 criteria.\n\n"
+                    f"Hypothesis:\n{hypothesis.text}\n\n"
+                    f"Respond in JSON format."
                 )
 
                 # Handle empty responses from reflection agent
@@ -759,8 +748,14 @@ class AIScientistFramework:
             for h in reviewed_hypotheses
         ]
         logger.debug("Running hypothesis ranking agent")
+        hypotheses_summary = "\n".join(
+            f"- [Score {h['overall_score']}] {h['text']}"
+            for h in ranking_input
+        )
         ranking_response = self.ranking_agent.run(
-            json.dumps({"hypotheses_for_ranking": ranking_input})
+            f"Rank the following hypotheses by merit.\n\n"
+            f"Hypotheses:\n{hypotheses_summary}\n\n"
+            f"Respond in JSON format."
         )
 
         if not ranking_response or not ranking_response.strip():
@@ -865,20 +860,24 @@ class AIScientistFramework:
                 continue
 
             try:
-                evolution_input = {
-                    "original_hypothesis_text": hypothesis.text,
-                    "review_feedback": (
-                        hypothesis.reviews[-1]
-                        if hypothesis.reviews
-                        else {}
-                    ),  # Use latest review
-                    "meta_review_insights": meta_review_data,
-                }
+                review_feedback = (
+                    hypothesis.reviews[-1]
+                    if hypothesis.reviews
+                    else {}
+                )
                 logger.debug(
                     f"Evolving hypothesis {i+1}/{len(top_hypotheses)}"
                 )
                 evolution_response = self.evolution_agent.run(
-                    json.dumps(evolution_input)
+                    f"Evolve and refine the following "
+                    f"hypothesis.\n\n"
+                    f"Original hypothesis:\n"
+                    f"{hypothesis.text}\n\n"
+                    f"Review feedback:\n"
+                    f"{json.dumps(review_feedback, indent=2)}\n\n"
+                    f"Meta-review insights:\n"
+                    f"{json.dumps(meta_review_data, indent=2)}\n\n"
+                    f"Respond in JSON format."
                 )
 
                 # Fallback if evolution agent returns nothing
@@ -993,8 +992,15 @@ class AIScientistFramework:
         logger.debug(
             f"Collected {len(all_reviews_for_meta)} reviews for meta-analysis"
         )
+        reviews_text = json.dumps(
+            all_reviews_for_meta, indent=2
+        )
         meta_review_response = self.meta_review_agent.run(
-            json.dumps({"reviews": all_reviews_for_meta})
+            f"Synthesize cross-cutting insights from "
+            f"the following {len(all_reviews_for_meta)} "
+            f"hypothesis reviews.\n\n"
+            f"Reviews:\n{reviews_text}\n\n"
+            f"Respond in JSON format."
         )
 
         if (
@@ -1068,8 +1074,16 @@ class AIScientistFramework:
         logger.debug(
             f"Analyzing similarity for {len(hypothesis_texts)} hypothesis texts"
         )
+        numbered_hypotheses = "\n".join(
+            f"{idx+1}. {t}"
+            for idx, t in enumerate(hypothesis_texts)
+        )
         proximity_response = self.proximity_agent.run(
-            json.dumps({"hypotheses_texts": hypothesis_texts})
+            f"Analyze the similarity among these "
+            f"{len(hypothesis_texts)} hypotheses and "
+            f"cluster them.\n\n"
+            f"Hypotheses:\n{numbered_hypotheses}\n\n"
+            f"Respond in JSON format."
         )
 
         if not proximity_response or not proximity_response.strip():
@@ -1215,20 +1229,16 @@ class AIScientistFramework:
                     skipped_rounds += 1
                     continue
 
-                tournament_input = {
-                    "research_goal": (
-                        "Compare hypotheses for tournament"
-                    ),
-                    "hypothesis_a": h1.text,
-                    "hypothesis_b": h2.text,
-                }
-
                 logger.debug(
                     f"Tournament round "
                     f"{round_num+1}/{total_rounds}"
                 )
                 tournament_response = self.tournament_agent.run(
-                    json.dumps(tournament_input)
+                    f"Compare the following two hypotheses "
+                    f"and pick a winner.\n\n"
+                    f"Hypothesis A:\n{h1.text}\n\n"
+                    f"Hypothesis B:\n{h2.text}\n\n"
+                    f"Respond in JSON format."
                 )
 
                 if (

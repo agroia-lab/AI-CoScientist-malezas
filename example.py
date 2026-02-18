@@ -3,22 +3,23 @@ import json
 from ai_coscientist import AIScientistFramework
 
 ai_coscientist = AIScientistFramework(
-    model_name="anthropic/claude-sonnet-4-6[1m]",
-    max_iterations=2,
+    model_name="gpt-4.1-mini",
+    max_iterations=1,
     verbose=False,
-    hypotheses_per_generation=10,
-    tournament_size=8,
-    evolution_top_k=3,
+    hypotheses_per_generation=5,
+    tournament_size=4,
+    evolution_top_k=2,
 )
 
-# Agronomy research goal
+# Broomrape research goal
 research_goal = (
-    "Develop novel integrated weed management strategies"
-    " combining site-specific herbicide application,"
-    " cover crop-based weed suppression, and"
-    " drone-based weed mapping to reduce herbicide"
-    " use by 50% while maintaining crop yield in"
-    " Mediterranean cereal-legume rotations"
+    "Identify effective integrated management strategies"
+    " for Phelipanche ramosa in processing tomato"
+    " (Solanum lycopersicum) under Mediterranean"
+    " irrigated conditions, using germination stimulants,"
+    " biocontrol agents, and precision herbicide"
+    " treatments to cut the soil seed bank by 60%"
+    " over three seasons."
 )
 
 results = ai_coscientist.run_research_workflow(research_goal)

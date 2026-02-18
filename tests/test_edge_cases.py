@@ -33,7 +33,7 @@ def _build_framework_with_agent_responses(**overrides):
         "proximity": "ProximityAnalyzer",
     }
 
-    with patch("ai_coscientist.main.Agent") as MockAgentCls:
+    with patch("ai_coscientist.main.DirectLLMAgent") as MockAgentCls:
         agents_created = []
 
         def _make_agent(**kwargs):
@@ -74,7 +74,7 @@ def _build_framework_with_agent_responses(**overrides):
 
 def test_empty_research_goal_raises_value_error():
     """Empty string research goal raises ValueError."""
-    with patch("ai_coscientist.main.Agent") as MockAgentCls:
+    with patch("ai_coscientist.main.DirectLLMAgent") as MockAgentCls:
         mock = MagicMock()
         mock.agent_name = "MockAgent"
         mock.run = MagicMock(return_value="{}")
@@ -89,7 +89,7 @@ def test_empty_research_goal_raises_value_error():
 
 def test_whitespace_only_research_goal_raises_value_error():
     """Whitespace-only research goal raises ValueError."""
-    with patch("ai_coscientist.main.Agent") as MockAgentCls:
+    with patch("ai_coscientist.main.DirectLLMAgent") as MockAgentCls:
         mock = MagicMock()
         mock.agent_name = "MockAgent"
         mock.run = MagicMock(return_value="{}")
@@ -104,7 +104,7 @@ def test_whitespace_only_research_goal_raises_value_error():
 
 def test_non_string_research_goal_raises():
     """Non-string research goal (int) raises ValueError."""
-    with patch("ai_coscientist.main.Agent") as MockAgentCls:
+    with patch("ai_coscientist.main.DirectLLMAgent") as MockAgentCls:
         mock = MagicMock()
         mock.agent_name = "MockAgent"
         mock.run = MagicMock(return_value="{}")

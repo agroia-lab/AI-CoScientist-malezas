@@ -108,7 +108,7 @@ def test_framework_custom_prompts_passed(
     """custom_prompts dict is stored on the instance."""
     from unittest.mock import patch, MagicMock
 
-    with patch("ai_coscientist.main.Agent") as MA:
+    with patch("ai_coscientist.main.DirectLLMAgent") as MA:
         MA.return_value = MagicMock()
         from ai_coscientist import AIScientistFramework
 

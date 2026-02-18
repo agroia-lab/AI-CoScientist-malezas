@@ -158,23 +158,11 @@ SUPERVISOR_RESPONSE = json.dumps(
 )
 
 
-def _agent_side_effect_factory():
-    """Return a side-effect function that routes by agent_name."""
-    call_counts = {}
-
-    def _route(self_or_input, *args, **kwargs):
-        """Dispatch based on agent_name stored on the mock instance."""
-        # swarms Agent.run(input_str) -- `self_or_input` is the input string
-        # because the mock replaces the bound method. We need to figure out
-        # which agent we are from the mock's agent_name.
-        return "{}"
-
-    return _route
-
-
 def _build_framework():
     """Build a framework with per-agent mock routing."""
-    with patch("ai_coscientist.main.Agent") as MockAgentCls:
+    with patch(
+        "ai_coscientist.main.DirectLLMAgent"
+    ) as MockAgentCls:
         agents_created = []
 
         def _make_agent(**kwargs):

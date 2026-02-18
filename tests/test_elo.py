@@ -75,7 +75,7 @@ def test_elo_returns_int():
 
 def test_hypothesis_delegates_to_calculate_elo_update():
     """Hypothesis.update_elo delegates to the pure fn."""
-    with patch("ai_coscientist.main.Agent"):
+    with patch("ai_coscientist.main.DirectLLMAgent"):
         from ai_coscientist.types import Hypothesis
 
         h = Hypothesis(text="test")
@@ -209,7 +209,7 @@ def test_validate_invalid_mode():
 
 def test_framework_accepts_tournament_mode():
     """Framework __init__ accepts tournament_mode param."""
-    with patch("ai_coscientist.main.Agent") as MockAgent:
+    with patch("ai_coscientist.main.DirectLLMAgent") as MockAgent:
         mock_instance = MagicMock()
         mock_instance.agent_name = "MockAgent"
         mock_instance.run = MagicMock(return_value="{}")
@@ -226,7 +226,7 @@ def test_framework_accepts_tournament_mode():
 
 def test_framework_rejects_bad_tournament_mode():
     """Invalid tournament_mode raises ValueError."""
-    with patch("ai_coscientist.main.Agent") as MockAgent:
+    with patch("ai_coscientist.main.DirectLLMAgent") as MockAgent:
         mock_instance = MagicMock()
         mock_instance.agent_name = "MockAgent"
         mock_instance.run = MagicMock(return_value="{}")
@@ -243,7 +243,7 @@ def test_framework_rejects_bad_tournament_mode():
 
 def test_framework_default_tournament_mode():
     """Default tournament_mode is 'random'."""
-    with patch("ai_coscientist.main.Agent") as MockAgent:
+    with patch("ai_coscientist.main.DirectLLMAgent") as MockAgent:
         mock_instance = MagicMock()
         mock_instance.agent_name = "MockAgent"
         mock_instance.run = MagicMock(return_value="{}")

@@ -25,6 +25,7 @@ from .types import (
 )
 from .protocols import AgentInterface
 from .elo import calculate_elo_update
+from .llm_agent import DirectLLMAgent
 from .main import AIScientistFramework
 
 __all__ = [
@@ -41,6 +42,7 @@ __all__ = [
     "ProximityAnalysisResult",
     "TournamentJudgment",
     "AgentInterface",
+    "DirectLLMAgent",
     "calculate_elo_update",
     "__version__",
     "__author__",
