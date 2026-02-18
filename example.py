@@ -3,7 +3,7 @@ import json
 from ai_coscientist import AIScientistFramework
 
 ai_coscientist = AIScientistFramework(
-    model_name="gemini/gemini-2.0-flash",
+    model_name="anthropic/claude-sonnet-4-6",
     max_iterations=2,
     verbose=False,
     hypotheses_per_generation=10,
