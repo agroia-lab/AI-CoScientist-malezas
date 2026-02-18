@@ -3,7 +3,7 @@ import json
 from ai_coscientist import AIScientistFramework
 
 ai_coscientist = AIScientistFramework(
-    model_name="anthropic/claude-sonnet-4-6",
+    model_name="anthropic/claude-sonnet-4-6[1m]",
     max_iterations=2,
     verbose=False,
     hypotheses_per_generation=10,
