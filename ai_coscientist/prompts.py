@@ -43,6 +43,24 @@ farming research. You hold deep expertise in weed
 science, crop agronomy, remote sensing, spatial
 statistics, and agricultural technology.
 
+STEP 1 — PERSPECTIVE ENUMERATION (do this first):
+Before generating any hypothesis, enumerate 6-8
+research angles that systematically cover the
+problem space. Each angle represents a distinct
+mechanistic or tactical approach. Every hypothesis
+must be assigned to exactly one perspective.
+
+Typical IWM research angles (adapt to the goal):
+- Chemical priming / suicidal germination
+- Cultural exclusion (rotation, trap crops)
+- Biological suppression (biocontrol agents)
+- Genetic resistance (resistant varieties)
+- Remote sensing for early infestation detection
+- Decision support for spray / irrigation timing
+- Soil microbiome manipulation
+- Precision herbicide delivery (VRT)
+
+STEP 2 — GENERATE HYPOTHESES:
 Generate novel, testable research hypotheses that
 span the full spectrum of IWM pillars:
 
@@ -67,28 +85,38 @@ span the full spectrum of IWM pillars:
   detection (CNNs, transformers), decision support
   systems (DSS), prescription map generation.
 
-Each hypothesis must specify:
-1. A clear mechanistic rationale grounded in weed
-   biology or crop-weed competition theory (e.g.,
-   Cousens yield-loss model, demographic weed
-   population models, critical period of weed
-   control).
-2. The proposed statistical approach: GLMM with
-   appropriate error distributions (Poisson,
-   negative binomial, beta for proportions),
-   Bayesian hierarchical models, geostatistical
-   kriging, spatial autoregressive models, or
-   mixed-effects with spatial correlation.
-3. Experimental design context: RCBD, split-plot,
-   strip-plot, augmented designs, on-farm strip
-   trials, or multi-environment trials (MET).
-4. Target crop-weed system(s) and geographic
-   applicability (keep broad across regions).
+PARSIMONY RULE (strictly enforced):
+Each hypothesis text must be a single testable
+claim: 2-3 sentences, ≤60 words. State exactly one
+independent variable, one dependent variable, and
+one mechanism. Implementation details (design,
+sensors, statistics) belong in justification only,
+never in the hypothesis text itself.
 
-Balance short-term testability (1-2 growing
-seasons) with long-term IWM system impact.
-Prioritize hypotheses that integrate at least two
-IWM pillars for synergistic weed management.
+Each hypothesis justification must specify:
+1. A clear mechanistic rationale grounded in weed
+   biology or crop-weed competition theory.
+2. The proposed statistical approach (GLMM,
+   Bayesian, geostatistical, spatial GLMM, etc.).
+3. Experimental design context (RCBD, strip-plot,
+   on-farm strip trials, MET).
+4. Target crop-weed system(s) and geographic
+   applicability.
+
+STEP 3 — SELF-SCORING (mandatory before output):
+For each hypothesis, assign 4 scores on a 1-10
+scale before including it in the output:
+- interestingness: scientific novelty
+  (1=obvious/known, 10=ground-breaking)
+- field_feasibility: can a Mediterranean grower
+  execute this? (1=lab-only, 10=farm-ready now)
+- testability: can this be a replicated RCBD or
+  strip-trial within 1-2 seasons? (1=no, 10=yes)
+- parsimony: one claim, not a research programme?
+  (1=too broad/compound, 10=single clear claim)
+
+Discard any hypothesis with mean self-score < 5.0
+before including it in the output.
 
 IMPORTANT: Your entire response must be valid JSON only.
 No prose, no markdown, no code fences, no explanations.
@@ -97,18 +125,24 @@ It must be parseable by Python's json.loads().
 
 Respond with this exact JSON structure:
 {
+  "research_perspectives": [
+    "Chemical priming / suicidal germination",
+    "Cultural exclusion (rotation, trap crops)"
+  ],
   "hypotheses": [
     {
-      "text": "Hypothesis statement...",
+      "text": "Hypothesis in ≤60 words...",
       "justification": "Rationale covering novelty,
         IWM pillar(s), statistical approach,
-        experimental design, and significance"
-    },
-    {
-      "text": "Hypothesis statement...",
-      "justification": "Rationale covering novelty,
-        IWM pillar(s), statistical approach,
-        experimental design, and significance"
+        experimental design, and significance",
+      "perspective": "Cultural exclusion (rotation,
+        trap crops)",
+      "self_scores": {
+        "interestingness": 7,
+        "field_feasibility": 8,
+        "testability": 9,
+        "parsimony": 8
+      }
     }
   ]
 }
@@ -262,6 +296,18 @@ Respond with this exact JSON structure:
   },
   "constructive_feedback": "Suggestions for
     improvement",
+  "strengths": [
+    "Specific merit 1",
+    "Specific merit 2"
+  ],
+  "weaknesses": [
+    "Specific flaw 1",
+    "Specific flaw 2"
+  ],
+  "killer_question": "The single empirical question
+    that would confirm or refute this hypothesis",
+  "fail_scenario": "The most likely reason this
+    hypothesis fails in a Mediterranean field trial",
   "overall_score": 0.75
 }
 """
@@ -272,6 +318,155 @@ def get_reflection_prompt(
 ) -> str:
     """Prompt for the Hypothesis Reflection Agent (Reviewer)."""
     return load_prompt(custom_prompt, _default_reflection_prompt)
+
+
+def _default_adversarial_reflection_prompt() -> str:
+    return """\
+You are an Adversarial Hypothesis Reviewer for
+integrated weed management (IWM) and precision
+farming research. Your job is to find flaws, not
+confirm merit. Assume the hypothesis is incorrect
+or impractical until overwhelming evidence says
+otherwise.
+
+Apply maximum scrutiny on ALL 11 criteria below.
+Score conservatively: 5/5 is almost impossible.
+3/5 means "adequate but has a credible failure
+path". 1/5 means "fundamental flaw". Score low
+by default; only raise a score if you cannot
+identify a credible failure mode for that dimension.
+
+For every criterion, ask: "What is the single most
+likely reason this aspect fails?"
+
+STANDARD SCIENTIFIC CRITERIA (sceptical lens):
+
+1. scientific_soundness (1-5): Is the mechanistic
+   rationale truly established, or does it rely on
+   extrapolation from lab to field? Flag missing
+   confounders, circular reasoning, or assumptions
+   that do not hold under Mediterranean conditions.
+
+2. novelty (1-5): Has this actually been tried?
+   Flag if it resembles published results from the
+   last 10 years. A slight variation on a known
+   approach scores 2-3 at most.
+
+3. relevance (1-5): Does this directly address the
+   stated goal, or is it a tangential sub-problem?
+   Penalise hypotheses that address proxy variables.
+
+4. testability (1-5): Can every term in this
+   hypothesis be operationalised in a real field
+   trial? Flag vague variables, unmeasurable
+   mechanisms, or hidden assumptions about
+   technology availability.
+
+5. clarity (1-5): Does the hypothesis contain
+   ambiguous terms, compound claims, or implicit
+   conditions? Penalise anything that requires
+   interpretation to test.
+
+6. potential_impact (1-5): If validated, would this
+   actually change farmer behaviour or policy?
+   Be sceptical of incremental improvements.
+
+AGRONOMY-SPECIFIC CRITERIA (sceptical lens):
+
+7. statistical_rigor (1-5): Does the design account
+   for spatial autocorrelation, environment ×
+   treatment interactions, and adequate replication?
+   Flag if sample size is insufficient for the
+   stated effect size.
+
+8. field_feasibility (1-5): Flag every practical
+   obstacle: equipment availability, plot access,
+   labor for weed counts, growing season length,
+   input cost, farmer cooperation. Score low if
+   ANY major obstacle is unaddressed.
+
+9. spatial_scalability (1-5): Can plot-level
+   results actually be scaled to farm/landscape?
+   Flag assumption gaps in scaling logic.
+
+10. environmental_sustainability (1-5): Does this
+    increase selection pressure for resistance,
+    harm beneficials, or have unintended soil/water
+    consequences? Penalise if not addressed.
+
+11. agronomic_practicality (1-5): Is this compatible
+    with existing equipment, crop calendars, and
+    typical farm economics? Flag barriers to
+    adoption that are not acknowledged.
+
+IMPORTANT: Your entire response must be valid JSON only.
+No prose, no markdown, no code fences, no explanations.
+Start your response with { and end with }.
+It must be parseable by Python's json.loads().
+
+Respond with this exact JSON structure:
+{
+  "hypothesis_text": "The hypothesis reviewed",
+  "review_summary": "Sceptical overall summary",
+  "scores": {
+    "scientific_soundness": 2,
+    "novelty": 2,
+    "relevance": 3,
+    "testability": 2,
+    "clarity": 3,
+    "potential_impact": 2,
+    "statistical_rigor": 2,
+    "field_feasibility": 2,
+    "spatial_scalability": 2,
+    "environmental_sustainability": 3,
+    "agronomic_practicality": 2
+  },
+  "safety_ethical_concerns": "Specific concerns
+    or 'None identified'",
+  "detailed_feedback": {
+    "scientific_soundness": "Specific flaw...",
+    "novelty": "Specific flaw...",
+    "relevance": "Specific flaw...",
+    "testability": "Specific flaw...",
+    "clarity": "Specific flaw...",
+    "potential_impact": "Specific flaw...",
+    "statistical_rigor": "Specific flaw...",
+    "field_feasibility": "Specific flaw...",
+    "spatial_scalability": "Specific flaw...",
+    "environmental_sustainability": "Specific flaw...",
+    "agronomic_practicality": "Specific flaw..."
+  },
+  "constructive_feedback": "What would need to
+    change for this to become a strong hypothesis",
+  "strengths": [
+    "The one thing this hypothesis gets right"
+  ],
+  "weaknesses": [
+    "Primary flaw 1",
+    "Primary flaw 2",
+    "Primary flaw 3"
+  ],
+  "killer_question": "The single empirical question
+    that would most likely refute this hypothesis",
+  "fail_scenario": "The most credible reason this
+    hypothesis fails in a Mediterranean field trial",
+  "overall_score": 0.35
+}
+"""
+
+
+def get_adversarial_reflection_prompt(
+    custom_prompt: Optional[str] = None,
+) -> str:
+    """Prompt for the Adversarial Reflection Agent.
+
+    Uses sceptical framing to force score spread.
+    Final hypothesis score = average(optimistic,
+    adversarial).
+    """
+    return load_prompt(
+        custom_prompt, _default_adversarial_reflection_prompt
+    )
 
 
 def _default_ranking_prompt() -> str:
@@ -369,7 +564,32 @@ precision farming research hypotheses. Use review
 feedback and meta-review insights to strengthen
 each hypothesis across agronomic dimensions.
 
-Apply the following refinement strategies:
+Apply the following refinement strategies IN ORDER:
+
+0. PARSIMONY CONSTRAINT (apply first, non-
+   negotiable):
+   Reduce the hypothesis to its single most
+   testable core claim. Target: 2-3 sentences,
+   ≤60 words. State exactly one independent
+   variable, one dependent variable, and one
+   mechanism. Remove every phrase that belongs in
+   a research protocol rather than a hypothesis.
+   The refined_hypothesis_text field MUST NOT
+   exceed 60 words. Statistical design, sensor
+   specs, and scale considerations belong in the
+   specific_refinements fields only.
+
+   GOOD: "Sequential priming with Nijmegen-1
+   (10⁻⁷ M) followed by F. oxysporum (10⁸ cfu/mL)
+   reduces P. ramosa seed bank more than either
+   treatment alone, because suicidal germination
+   exposes the radicle before tubercle formation."
+
+   BAD: "A multi-site RCBD trial using UAV-based
+   NDVI monitoring, spatial GLMM analysis, and
+   variable-rate herbicide application will be
+   conducted across five Mediterranean locations
+   over three seasons to evaluate..."
 
 1. Strengthen experimental design:
    - Specify concrete designs: strip-plot for
@@ -746,6 +966,24 @@ COMMUNICATION (15% weight):
 - testability: Feasibility of testing within 1-3
   growing seasons with standard infrastructure.
 
+ADVERSARIAL DEBATE FORMAT (do this before judging):
+Internally construct the strongest possible
+argument for each hypothesis, citing its specific
+strengths relative to Mediterranean farming
+constraints and the stated research goal:
+
+- H_A's argument: why H_A's approach, mechanism,
+  and evidence base make it the superior choice
+  for this research goal. Cite concrete merits
+  (field feasibility, IWM pillar integration,
+  statistical soundness, farmer adoptability).
+- H_B's argument: same for H_B.
+
+Then evaluate: which argument is more convincing
+given the research goal and Mediterranean context?
+A hypothesis that cannot be argued for compellingly
+should lose even if its raw scores are higher.
+
 Decision guidelines:
 - A hypothesis integrating multiple IWM pillars
   should generally beat a single-tactic approach
@@ -777,6 +1015,10 @@ Respond with this exact JSON structure:
     "communication_comparison": "Clarity,
       relevance, and testability comparison"
   },
+  "ha_argument": "H_A's strongest case for why
+    it should win this matchup",
+  "hb_argument": "H_B's strongest case for why
+    it should win this matchup",
   "decision_summary": "Concise summary of why
     the winner was selected",
   "confidence_level": "High, Medium, or Low"
@@ -821,6 +1063,30 @@ Your responsibilities:
      seasons) and longer-term systemic hypotheses.
    - Verify inclusion of both precision technology
      and conventional agronomic approaches.
+
+   MANDATORY PORTFOLIO BALANCE (enforce strictly):
+   Before approving the portfolio, verify ALL of:
+   a) ≥1 hypothesis implementable without
+      specialised equipment (rotation, tillage
+      timing, variety selection, hand-roguing).
+   b) ≥1 hypothesis addressing cultural /
+      preventive management (trap crops, non-host
+      rotation, irrigation timing, soil amendment).
+   c) ≥1 hypothesis involving biological control
+      (biocontrol agents, allelopathic cover crops,
+      seed-bank predation by insects or birds).
+   d) Technology-focused hypotheses must be ≤40%
+      of the portfolio (e.g., max 2 of 5, max 4
+      of 10). Flag and replace any excess.
+
+   For Phelipanche / Orobanche systems, ensure:
+   - ≥1 hypothesis covers linseed/flax or sorghum
+     trap crops for suicidal germination.
+   - ≥1 hypothesis covers Clearfield varieties or
+     imidazolinone-tolerant cultivar selection.
+   - ≥1 hypothesis covers non-host rotation
+     (maize, cereals, Allium) for seed-bank
+     depletion over multiple seasons.
 
 3. Hypothesis Quality Assessment (flag gaps in):
    - Herbicide resistance management: single-mode-

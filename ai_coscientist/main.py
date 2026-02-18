@@ -32,6 +32,7 @@ from .types import (
 from .prompts import (
     get_generation_prompt,
     get_reflection_prompt,
+    get_adversarial_reflection_prompt,
     get_ranking_prompt,
     get_evolution_prompt,
     get_meta_review_prompt,
@@ -198,6 +199,16 @@ class AIScientistFramework:
                     agent_name="HypothesisReflector",
                     system_prompt=get_reflection_prompt(
                         cp.get("reflection")
+                    ),
+                    model_name=self.model_name,
+                    llm_args=self._llm_args,
+                )
+            )
+            self.adversarial_reflection_agent: AgentInterface = (
+                DirectLLMAgent(
+                    agent_name="AdversarialReflector",
+                    system_prompt=get_adversarial_reflection_prompt(
+                        cp.get("adversarial_reflection")
                     ),
                     model_name=self.model_name,
                     llm_args=self._llm_args,
@@ -598,6 +609,25 @@ class AIScientistFramework:
                     )
                     continue
 
+                # T1-D: pre-filter by self-scores (mean < 5.0 → discard)
+                if isinstance(hy_data, dict):
+                    ss = hy_data.get("self_scores", {})
+                    if ss and isinstance(ss, dict):
+                        vals = [
+                            v for v in ss.values()
+                            if isinstance(v, (int, float))
+                        ]
+                        if vals:
+                            mean_ss = sum(vals) / len(vals)
+                            if mean_ss < 5.0:
+                                logger.info(
+                                    f"Pre-filtering hypothesis {i+1} "
+                                    f"(mean self-score="
+                                    f"{mean_ss:.1f} < 5.0): "
+                                    f"{hypothesis_text[:50]}..."
+                                )
+                                continue
+
                 hypotheses.append(
                     Hypothesis(text=hypothesis_text.strip())
                 )
@@ -654,19 +684,26 @@ class AIScientistFramework:
                 logger.debug(
                     f"Reviewing hypothesis {i+1}/{len(hypotheses)}"
                 )
-                review_response = self.reflection_agent.run(
+                review_task = (
                     f"Review the following hypothesis and "
                     f"score it on all 11 criteria.\n\n"
                     f"Hypothesis:\n{hypothesis.text}\n\n"
                     f"Respond in JSON format."
                 )
+                review_response = self.reflection_agent.run(
+                    review_task
+                )
 
                 # Handle empty responses from reflection agent
                 if not review_response or not review_response.strip():
                     logger.warning(
-                        f"Reflection agent returned empty response for hypothesis {i+1}"
+                        f"Reflection agent returned empty response "
+                        f"for hypothesis {i+1}"
                     )
-                    review_response = '{"overall_score": 0.5, "review_summary": "No review available"}'
+                    review_response = (
+                        '{"overall_score": 0.5, '
+                        '"review_summary": "No review available"}'
+                    )
 
                 self.conversation.add(
                     role=self.reflection_agent.agent_name,
@@ -674,12 +711,39 @@ class AIScientistFramework:
                 )
                 review_data = self._safely_parse_json(review_response)
 
+                # T1-B: adversarial review pass; average scores
+                adv_response = (
+                    self.adversarial_reflection_agent.run(review_task)
+                )
+                if not adv_response or not adv_response.strip():
+                    adv_response = (
+                        '{"overall_score": 0.5, '
+                        '"review_summary": "No adversarial review"}'
+                    )
+                self.conversation.add(
+                    role=self.adversarial_reflection_agent.agent_name,
+                    content=adv_response,
+                )
+                adv_data = self._safely_parse_json(adv_response)
+
                 if review_data and "overall_score" in review_data:
-                    overall_score = review_data.get(
-                        "overall_score", 0.0
+                    opt_score = float(
+                        review_data.get("overall_score", 0.0)
+                    )
+                    adv_score = float(
+                        adv_data.get("overall_score", opt_score)
+                        if adv_data
+                        else opt_score
+                    )
+                    overall_score = (opt_score + adv_score) / 2
+                    logger.debug(
+                        f"Hypothesis {i+1} scores: "
+                        f"optimistic={opt_score:.2f}, "
+                        f"adversarial={adv_score:.2f}, "
+                        f"avg={overall_score:.2f}"
                     )
                     try:
-                        hypothesis.score = float(overall_score)
+                        hypothesis.score = overall_score
                         # Validate the review data structure before appending
                         if isinstance(review_data, dict):
                             hypothesis.reviews.append(
