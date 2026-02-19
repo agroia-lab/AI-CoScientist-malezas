@@ -121,6 +121,15 @@ class ProximityAnalysisResult(TypedDict):
     redundancy_assessment: str
 
 
+class TournamentDimensionScores(TypedDict):
+    """Per-dimension scores for a tournament match."""
+
+    scientific_merit: Dict[str, int]
+    practical_value: Dict[str, int]
+    impact: Dict[str, int]
+    communication: Dict[str, int]
+
+
 class TournamentJudgment(TypedDict):
     """Type definition for tournament judgment."""
 
@@ -128,6 +137,7 @@ class TournamentJudgment(TypedDict):
     hypothesis_a: str
     hypothesis_b: str
     winner: str
+    dimension_scores: TournamentDimensionScores
     judgment_explanation: Dict[str, str]
     decision_summary: str
     confidence_level: str
@@ -169,6 +179,63 @@ class Hypothesis:
     generation_timestamp: float = field(default_factory=time.time)
     win_count: int = 0
     loss_count: int = 0
+    elo_scientific: int = 1200
+    elo_practical: int = 1200
+    elo_impact: int = 1200
+    elo_communication: int = 1200
+
+    # Map dimension names to elo attribute names
+    _DIM_TO_ATTR = {
+        "scientific_merit": "elo_scientific",
+        "practical_value": "elo_practical",
+        "impact": "elo_impact",
+        "communication": "elo_communication",
+    }
+
+    def update_dimension_elos(
+        self,
+        opponent: "Hypothesis",
+        dimension_scores: Dict[str, Dict[str, int]],
+        weights: Dict[str, float],
+        k_factor: int = 32,
+        is_h_a: bool = True,
+    ) -> None:
+        """Update per-dimension Elo ratings from tournament scores.
+
+        *dimension_scores* maps dimension name to
+        ``{"h_a": score, "h_b": score}`` (1-10 each).
+        *is_h_a* indicates whether ``self`` is hypothesis A.
+        """
+        my_key = "h_a" if is_h_a else "h_b"
+        opp_key = "h_b" if is_h_a else "h_a"
+
+        for dim, attr in self._DIM_TO_ATTR.items():
+            scores = dimension_scores.get(dim)
+            if not isinstance(scores, dict):
+                continue
+            my_score = scores.get(my_key)
+            opp_score = scores.get(opp_key)
+            if not isinstance(
+                my_score, (int, float)
+            ) or not isinstance(opp_score, (int, float)):
+                continue
+            if my_score == opp_score:
+                continue  # tie → no change
+            win = my_score > opp_score
+            my_elo = getattr(self, attr)
+            opp_elo = getattr(opponent, attr)
+            new_elo = calculate_elo_update(
+                my_elo, opp_elo, win, k_factor
+            )
+            setattr(self, attr, new_elo)
+
+        # Recompute composite elo_rating as weighted sum
+        self.elo_rating = round(
+            sum(
+                getattr(self, attr) * weights.get(dim, 0.25)
+                for dim, attr in self._DIM_TO_ATTR.items()
+            )
+        )
 
     def update_elo(
         self, opponent_elo: int, win: bool, k_factor: int = 32
@@ -204,6 +271,10 @@ class Hypothesis:
         return {
             "text": self.text,
             "elo_rating": self.elo_rating,
+            "elo_scientific": self.elo_scientific,
+            "elo_practical": self.elo_practical,
+            "elo_impact": self.elo_impact,
+            "elo_communication": self.elo_communication,
             "score": self.score,
             "reviews": self.reviews,
             "similarity_cluster_id": self.similarity_cluster_id,

@@ -113,6 +113,10 @@ def test_to_dict_has_all_expected_keys():
         expected_keys = {
             "text",
             "elo_rating",
+            "elo_scientific",
+            "elo_practical",
+            "elo_impact",
+            "elo_communication",
             "score",
             "reviews",
             "similarity_cluster_id",

@@ -998,12 +998,22 @@ No prose, no markdown, no code fences, no explanations.
 Start your response with { and end with }.
 It must be parseable by Python's json.loads().
 
+SCORING CALIBRATION: Use the full 1-10 range.
+1-2 = clearly weak, 3-4 = below average,
+5-6 = adequate, 7-8 = strong, 9-10 = exceptional.
+Avoid clustering all scores near the midpoint.
+
 Respond with this exact JSON structure:
 {
   "research_goal": "The research goal",
   "hypothesis_a": "Text of hypothesis A",
   "hypothesis_b": "Text of hypothesis B",
-  "winner": "a or b",
+  "dimension_scores": {
+    "scientific_merit": {"h_a": 7, "h_b": 5},
+    "practical_value": {"h_a": 6, "h_b": 8},
+    "impact": {"h_a": 7, "h_b": 6},
+    "communication": {"h_a": 8, "h_b": 7}
+  },
   "judgment_explanation": {
     "scientific_merit_comparison": "Soundness,
       novelty, and statistical rigor comparison",

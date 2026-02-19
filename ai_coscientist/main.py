@@ -102,6 +102,8 @@ class AIScientistFramework:
         max_conversation_history: int = 500,
         tournament_mode: str = "random",
         custom_prompts: Optional[Dict[str, str]] = None,
+        ensemble_review_count: int = 3,
+        tournament_weights: Optional[Dict[str, float]] = None,
     ) -> None:
         """Initialize the AIScientistFramework system with configuration parameters."""
         # Type validation
@@ -160,6 +162,36 @@ class AIScientistFramework:
             "agent_execution_times": {},
         }
 
+        # Ensemble review count
+        if (
+            not isinstance(ensemble_review_count, int)
+            or ensemble_review_count < 1
+        ):
+            raise ValueError(
+                f"ensemble_review_count must be int >= 1, "
+                f"got {ensemble_review_count}"
+            )
+        self.ensemble_review_count: int = ensemble_review_count
+
+        # Tournament dimension weights
+        _default_weights = {
+            "scientific_merit": 0.25,
+            "practical_value": 0.35,
+            "impact": 0.25,
+            "communication": 0.15,
+        }
+        self.tournament_weights: Dict[str, float] = (
+            tournament_weights
+            if tournament_weights is not None
+            else _default_weights
+        )
+        _wsum = sum(self.tournament_weights.values())
+        if abs(_wsum - 1.0) > 0.01:
+            raise ValueError(
+                f"tournament_weights must sum to ~1.0, "
+                f"got {_wsum:.4f}"
+            )
+
         # Custom prompts (keyed by agent role name)
         self.custom_prompts: Dict[str, str] = custom_prompts or {}
 
@@ -184,25 +216,22 @@ class AIScientistFramework:
         """Initialize all specialized agents with their roles and prompts."""
         cp = self.custom_prompts
         try:
-            self.generation_agent: AgentInterface = (
-                DirectLLMAgent(
-                    agent_name="HypothesisGenerator",
-                    system_prompt=get_generation_prompt(
-                        cp.get("generation")
-                    ),
-                    model_name=self.model_name,
-                    llm_args=self._llm_args,
-                )
+            self.generation_agent: AgentInterface = DirectLLMAgent(
+                agent_name="HypothesisGenerator",
+                system_prompt=get_generation_prompt(
+                    cp.get("generation")
+                ),
+                model_name=self.model_name,
+                llm_args=self._llm_args,
             )
-            self.reflection_agent: AgentInterface = (
-                DirectLLMAgent(
-                    agent_name="HypothesisReflector",
-                    system_prompt=get_reflection_prompt(
-                        cp.get("reflection")
-                    ),
-                    model_name=self.model_name,
-                    llm_args=self._llm_args,
-                )
+            self.reflection_agent: AgentInterface = DirectLLMAgent(
+                agent_name="HypothesisReflector",
+                system_prompt=get_reflection_prompt(
+                    cp.get("reflection")
+                ),
+                model_name=self.model_name,
+                llm_args=self._llm_args,
+                temperature=0.75,
             )
             self.adversarial_reflection_agent: AgentInterface = (
                 DirectLLMAgent(
@@ -214,65 +243,51 @@ class AIScientistFramework:
                     llm_args=self._llm_args,
                 )
             )
-            self.ranking_agent: AgentInterface = (
-                DirectLLMAgent(
-                    agent_name="HypothesisRanker",
-                    system_prompt=get_ranking_prompt(
-                        cp.get("ranking")
-                    ),
-                    model_name=self.model_name,
-                    llm_args=self._llm_args,
-                )
+            self.ranking_agent: AgentInterface = DirectLLMAgent(
+                agent_name="HypothesisRanker",
+                system_prompt=get_ranking_prompt(cp.get("ranking")),
+                model_name=self.model_name,
+                llm_args=self._llm_args,
             )
-            self.evolution_agent: AgentInterface = (
-                DirectLLMAgent(
-                    agent_name="HypothesisEvolver",
-                    system_prompt=get_evolution_prompt(
-                        cp.get("evolution")
-                    ),
-                    model_name=self.model_name,
-                    llm_args=self._llm_args,
-                )
+            self.evolution_agent: AgentInterface = DirectLLMAgent(
+                agent_name="HypothesisEvolver",
+                system_prompt=get_evolution_prompt(
+                    cp.get("evolution")
+                ),
+                model_name=self.model_name,
+                llm_args=self._llm_args,
             )
-            self.meta_review_agent: AgentInterface = (
-                DirectLLMAgent(
-                    agent_name="MetaReviewer",
-                    system_prompt=get_meta_review_prompt(
-                        cp.get("meta_review")
-                    ),
-                    model_name=self.model_name,
-                    llm_args=self._llm_args,
-                )
+            self.meta_review_agent: AgentInterface = DirectLLMAgent(
+                agent_name="MetaReviewer",
+                system_prompt=get_meta_review_prompt(
+                    cp.get("meta_review")
+                ),
+                model_name=self.model_name,
+                llm_args=self._llm_args,
             )
-            self.proximity_agent: AgentInterface = (
-                DirectLLMAgent(
-                    agent_name="ProximityAnalyzer",
-                    system_prompt=get_proximity_prompt(
-                        cp.get("proximity")
-                    ),
-                    model_name=self.model_name,
-                    llm_args=self._llm_args,
-                )
+            self.proximity_agent: AgentInterface = DirectLLMAgent(
+                agent_name="ProximityAnalyzer",
+                system_prompt=get_proximity_prompt(
+                    cp.get("proximity")
+                ),
+                model_name=self.model_name,
+                llm_args=self._llm_args,
             )
-            self.tournament_agent: AgentInterface = (
-                DirectLLMAgent(
-                    agent_name="TournamentJudge",
-                    system_prompt=get_tournament_prompt(
-                        cp.get("tournament")
-                    ),
-                    model_name=self.model_name,
-                    llm_args=self._llm_args,
-                )
+            self.tournament_agent: AgentInterface = DirectLLMAgent(
+                agent_name="TournamentJudge",
+                system_prompt=get_tournament_prompt(
+                    cp.get("tournament")
+                ),
+                model_name=self.model_name,
+                llm_args=self._llm_args,
             )
-            self.supervisor_agent: AgentInterface = (
-                DirectLLMAgent(
-                    agent_name="Supervisor",
-                    system_prompt=get_supervisor_prompt(
-                        cp.get("supervisor")
-                    ),
-                    model_name=self.model_name,
-                    llm_args=self._llm_args,
-                )
+            self.supervisor_agent: AgentInterface = DirectLLMAgent(
+                agent_name="Supervisor",
+                system_prompt=get_supervisor_prompt(
+                    cp.get("supervisor")
+                ),
+                model_name=self.model_name,
+                llm_args=self._llm_args,
             )
             logger.success("All agents initialized successfully")
         except Exception as e:
@@ -352,6 +367,8 @@ class AIScientistFramework:
             "max_conversation_history", 500
         )
         tournament_mode = kwargs.pop("tournament_mode", "random")
+        ensemble_review_count = kwargs.pop("ensemble_review_count", 3)
+        tournament_weights = kwargs.pop("tournament_weights", None)
 
         instance.model_name = model_name
         instance.max_iterations = max_iterations
@@ -376,6 +393,18 @@ class AIScientistFramework:
         if random_seed is not None:
             random.seed(random_seed)
         instance.max_conversation_history = max_conversation_history
+        instance.ensemble_review_count = ensemble_review_count
+        _default_weights = {
+            "scientific_merit": 0.25,
+            "practical_value": 0.35,
+            "impact": 0.25,
+            "communication": 0.15,
+        }
+        instance.tournament_weights = (
+            tournament_weights
+            if tournament_weights is not None
+            else _default_weights
+        )
         instance.start_time = None
         instance.execution_metrics = {
             "total_time": 0.0,
@@ -614,7 +643,8 @@ class AIScientistFramework:
                     ss = hy_data.get("self_scores", {})
                     if ss and isinstance(ss, dict):
                         vals = [
-                            v for v in ss.values()
+                            v
+                            for v in ss.values()
                             if isinstance(v, (int, float))
                         ]
                         if vals:
@@ -643,6 +673,65 @@ class AIScientistFramework:
             f"Generated {len(hypotheses)} initial hypotheses."
         )
         return hypotheses
+
+    @staticmethod
+    def _average_review_scores(
+        reviews: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Average numeric scores across multiple reviews.
+
+        Text fields are taken from the first valid review.
+        Returns the first review as-is when no reviews
+        contain score data.
+        """
+        SCORE_KEYS = [
+            "scientific_soundness",
+            "novelty",
+            "relevance",
+            "testability",
+            "clarity",
+            "potential_impact",
+            "statistical_rigor",
+            "field_feasibility",
+            "spatial_scalability",
+            "environmental_sustainability",
+            "agronomic_practicality",
+        ]
+        if not reviews:
+            return {}
+        # Start from the first review as a template
+        averaged = dict(reviews[0])
+
+        # Average the nested scores dict
+        score_dicts = [
+            r.get("scores", {})
+            for r in reviews
+            if isinstance(r.get("scores"), dict)
+        ]
+        if score_dicts:
+            avg_scores: Dict[str, int] = {}
+            for key in SCORE_KEYS:
+                vals = [
+                    s[key]
+                    for s in score_dicts
+                    if isinstance(s.get(key), (int, float))
+                ]
+                if vals:
+                    avg_scores[key] = round(sum(vals) / len(vals))
+            averaged["scores"] = avg_scores
+
+        # Average overall_score as float
+        os_vals = [
+            float(r["overall_score"])
+            for r in reviews
+            if isinstance(r.get("overall_score"), (int, float))
+        ]
+        if os_vals:
+            averaged["overall_score"] = round(
+                sum(os_vals) / len(os_vals), 4
+            )
+
+        return averaged
 
     def _run_reflection_phase(
         self, hypotheses: List[Hypothesis]
@@ -690,35 +779,52 @@ class AIScientistFramework:
                     f"Hypothesis:\n{hypothesis.text}\n\n"
                     f"Respond in JSON format."
                 )
-                review_response = self.reflection_agent.run(
-                    review_task
-                )
 
-                # Handle empty responses from reflection agent
-                if not review_response or not review_response.strip():
+                # T2-A: ensemble optimistic reviews
+                optimistic_reviews: List[Dict[str, Any]] = []
+                for r_idx in range(self.ensemble_review_count):
+                    resp = self.reflection_agent.run(review_task)
+                    if not resp or not resp.strip():
+                        logger.warning(
+                            f"Ensemble pass {r_idx+1} "
+                            f"returned empty for h{i+1}"
+                        )
+                        continue
+                    parsed = self._safely_parse_json(resp)
+                    if parsed and "overall_score" in parsed:
+                        optimistic_reviews.append(parsed)
+                    else:
+                        logger.warning(
+                            f"Ensemble pass {r_idx+1} "
+                            f"unparseable for h{i+1}"
+                        )
+
+                if not optimistic_reviews:
                     logger.warning(
-                        f"Reflection agent returned empty response "
+                        f"All ensemble reviews failed "
                         f"for hypothesis {i+1}"
                     )
-                    review_response = (
-                        '{"overall_score": 0.5, '
-                        '"review_summary": "No review available"}'
-                    )
+                    hypothesis.score = 0.0
+                    reviewed_hypotheses.append(hypothesis)
+                    continue
 
+                review_data = self._average_review_scores(
+                    optimistic_reviews
+                )
                 self.conversation.add(
                     role=self.reflection_agent.agent_name,
-                    content=review_response,
+                    content=json.dumps(review_data),
                 )
-                review_data = self._safely_parse_json(review_response)
 
-                # T1-B: adversarial review pass; average scores
-                adv_response = (
-                    self.adversarial_reflection_agent.run(review_task)
+                # Adversarial review (single pass)
+                adv_response = self.adversarial_reflection_agent.run(
+                    review_task
                 )
                 if not adv_response or not adv_response.strip():
                     adv_response = (
                         '{"overall_score": 0.5, '
-                        '"review_summary": "No adversarial review"}'
+                        '"review_summary": '
+                        '"No adversarial review"}'
                     )
                 self.conversation.add(
                     role=self.adversarial_reflection_agent.agent_name,
@@ -726,52 +832,45 @@ class AIScientistFramework:
                 )
                 adv_data = self._safely_parse_json(adv_response)
 
-                if review_data and "overall_score" in review_data:
-                    opt_score = float(
-                        review_data.get("overall_score", 0.0)
-                    )
-                    adv_score = float(
-                        adv_data.get("overall_score", opt_score)
-                        if adv_data
-                        else opt_score
-                    )
-                    overall_score = (opt_score + adv_score) / 2
+                opt_score = float(
+                    review_data.get("overall_score", 0.0)
+                )
+                adv_score = float(
+                    adv_data.get("overall_score", opt_score)
+                    if adv_data
+                    else opt_score
+                )
+                overall_score = (opt_score + adv_score) / 2
+                logger.debug(
+                    f"Hypothesis {i+1} scores: "
+                    f"optimistic={opt_score:.2f}, "
+                    f"adversarial={adv_score:.2f}, "
+                    f"avg={overall_score:.2f}"
+                )
+                try:
+                    hypothesis.score = overall_score
+                    if isinstance(review_data, dict):
+                        hypothesis.reviews.append(review_data)
+                    reviewed_hypotheses.append(hypothesis)
                     logger.debug(
-                        f"Hypothesis {i+1} scores: "
-                        f"optimistic={opt_score:.2f}, "
-                        f"adversarial={adv_score:.2f}, "
-                        f"avg={overall_score:.2f}"
+                        f"Successfully reviewed "
+                        f"hypothesis {i+1} with "
+                        f"score {overall_score}"
                     )
-                    try:
-                        hypothesis.score = overall_score
-                        # Validate the review data structure before appending
-                        if isinstance(review_data, dict):
-                            hypothesis.reviews.append(
-                                review_data
-                            )  # Store full review data
-                        reviewed_hypotheses.append(hypothesis)
-                        logger.debug(
-                            f"Successfully reviewed hypothesis {i+1} with score {overall_score}"
-                        )
-                    except (ValueError, TypeError) as e:
-                        logger.warning(
-                            f"Invalid score format for hypothesis {i+1}: {overall_score}, error: {e}"
-                        )
-                        hypothesis.score = 0.0
-                        reviewed_hypotheses.append(hypothesis)
-                else:
+                except (ValueError, TypeError) as e:
                     logger.warning(
-                        f"No valid review score found for hypothesis {i+1}: {hypothesis.text[:50]}..."
+                        f"Invalid score format for "
+                        f"hypothesis {i+1}: "
+                        f"{overall_score}, error: {e}"
                     )
-                    reviewed_hypotheses.append(
-                        hypothesis
-                    )  # Keep hypothesis even if review fails but log warning
+                    hypothesis.score = 0.0
+                    reviewed_hypotheses.append(hypothesis)
 
             except Exception as e:
-                logger.error(f"Error reviewing hypothesis {i+1}: {e}")
-                reviewed_hypotheses.append(
-                    hypothesis
-                )  # Keep hypothesis even if review fails
+                logger.error(
+                    f"Error reviewing hypothesis " f"{i+1}: {e}"
+                )
+                reviewed_hypotheses.append(hypothesis)
 
         self._time_execution("reflection", start_time)
         self.execution_metrics["reviews_count"] += len(
@@ -1056,9 +1155,7 @@ class AIScientistFramework:
         logger.debug(
             f"Collected {len(all_reviews_for_meta)} reviews for meta-analysis"
         )
-        reviews_text = json.dumps(
-            all_reviews_for_meta, indent=2
-        )
+        reviews_text = json.dumps(all_reviews_for_meta, indent=2)
         meta_review_response = self.meta_review_agent.run(
             f"Synthesize cross-cutting insights from "
             f"the following {len(all_reviews_for_meta)} "
@@ -1139,8 +1236,7 @@ class AIScientistFramework:
             f"Analyzing similarity for {len(hypothesis_texts)} hypothesis texts"
         )
         numbered_hypotheses = "\n".join(
-            f"{idx+1}. {t}"
-            for idx, t in enumerate(hypothesis_texts)
+            f"{idx+1}. {t}" for idx, t in enumerate(hypothesis_texts)
         )
         proximity_response = self.proximity_agent.run(
             f"Analyze the similarity among these "
@@ -1211,6 +1307,149 @@ class AIScientistFramework:
             f"Proximity analysis completed. {clusters_assigned} cluster assignments made"
         )
         return hypotheses
+
+    def _run_directed_regeneration(
+        self,
+        meta_review_data: Dict[str, Any],
+        existing_hypotheses: List[Hypothesis],
+        research_goal: str,
+    ) -> List[Hypothesis]:
+        """Generate new hypotheses targeting gaps found by meta-review.
+
+        Returns an empty list when there are no gaps or on any failure.
+        """
+        if not isinstance(meta_review_data, dict):
+            return []
+
+        weaknesses = meta_review_data.get("weaknesses", [])
+        strategic_recs = meta_review_data.get(
+            "strategic_recommendations", []
+        )
+        if not weaknesses and not strategic_recs:
+            logger.debug(
+                "No gaps in meta-review; skipping directed regeneration"
+            )
+            return []
+
+        start_time = time.time()
+        logger.info(
+            "Starting directed regeneration from meta-review gaps"
+        )
+
+        # Build gap summary
+        gap_parts: List[str] = []
+        if weaknesses:
+            gap_parts.append("Weaknesses:")
+            for w in weaknesses:
+                gap_parts.append(f"- {w}")
+        if strategic_recs:
+            gap_parts.append("Strategic recommendations:")
+            for rec in strategic_recs:
+                if isinstance(rec, dict):
+                    area = rec.get("focus_area", "")
+                    detail = rec.get("recommendation", "")
+                    gap_parts.append(f"- {area}: {detail}")
+                else:
+                    gap_parts.append(f"- {rec}")
+        gap_summary = "\n".join(gap_parts)
+
+        # Existing hypothesis texts for dedup
+        existing_texts = {h.text for h in existing_hypotheses}
+        numbered = "\n".join(
+            f"{idx+1}. {h.text}"
+            for idx, h in enumerate(existing_hypotheses)
+        )
+
+        regen_count = max(
+            1,
+            min(
+                len(strategic_recs) if strategic_recs else 1,
+                self.hypotheses_per_generation // 2,
+            ),
+        )
+
+        try:
+            regen_response = self.generation_agent.run(
+                f"Research goal: {research_goal}\n\n"
+                f"The meta-review identified these gaps:\n"
+                f"{gap_summary}\n\n"
+                f"Existing hypotheses (DO NOT duplicate):\n"
+                f"{numbered}\n\n"
+                f"Generate exactly {regen_count} NEW "
+                f"hypotheses targeting the gaps.\n"
+                f"Respond in JSON format."
+            )
+
+            if not regen_response or not regen_response.strip():
+                logger.warning(
+                    "Directed regeneration agent returned empty response"
+                )
+                self._time_execution(
+                    "directed_regeneration", start_time
+                )
+                return []
+
+            regen_data = self._safely_parse_json(regen_response)
+            regen_hyps_data = regen_data.get("hypotheses", [])
+            if not regen_hyps_data:
+                logger.warning(
+                    "Directed regeneration returned no hypotheses"
+                )
+                self._time_execution(
+                    "directed_regeneration", start_time
+                )
+                return []
+
+            new_hypotheses: List[Hypothesis] = []
+            for j, hy_data in enumerate(regen_hyps_data):
+                if isinstance(hy_data, dict) and "text" in hy_data:
+                    text = hy_data["text"].strip()
+                else:
+                    text = str(hy_data).strip()
+
+                if not text:
+                    continue
+
+                # T1-D: self-score pre-filter
+                if isinstance(hy_data, dict):
+                    ss = hy_data.get("self_scores", {})
+                    if ss and isinstance(ss, dict):
+                        vals = [
+                            v
+                            for v in ss.values()
+                            if isinstance(v, (int, float))
+                        ]
+                        if vals and (sum(vals) / len(vals)) < 5.0:
+                            logger.info(
+                                f"Directed regen: filtering h{j+1} "
+                                f"(low self-score)"
+                            )
+                            continue
+
+                # De-duplicate against existing
+                if text in existing_texts:
+                    logger.debug(
+                        f"Directed regen: skipping duplicate h{j+1}"
+                    )
+                    continue
+
+                new_hypotheses.append(Hypothesis(text=text))
+                existing_texts.add(text)
+
+            self._time_execution("directed_regeneration", start_time)
+            self.execution_metrics["hypothesis_count"] += len(
+                new_hypotheses
+            )
+            logger.success(
+                f"Directed regeneration produced "
+                f"{len(new_hypotheses)} new hypotheses"
+            )
+            return new_hypotheses
+
+        except Exception as e:
+            logger.error(f"Directed regeneration failed: {e}")
+            self._time_execution("directed_regeneration", start_time)
+            return []
 
     def _generate_pairings(
         self, hypotheses: List[Hypothesis]
@@ -1324,45 +1563,89 @@ class AIScientistFramework:
                     tournament_response
                 )
 
-                winner_choice = tournament_data.get("winner")
-                if winner_choice not in {"a", "b"}:
-                    match = re.search(
-                        r'"winner"\s*:\s*"?([ab])"?',
-                        tournament_response,
-                        re.IGNORECASE,
+                # T2-C: multi-criterion dimension scores
+                dim_scores = tournament_data.get("dimension_scores")
+                if isinstance(dim_scores, dict) and all(
+                    isinstance(dim_scores.get(d), dict)
+                    for d in (
+                        "scientific_merit",
+                        "practical_value",
+                        "impact",
+                        "communication",
                     )
-                    if match:
-                        winner_choice = match.group(1).lower()
+                ):
+                    # Dimension-based Elo updates
+                    h1.update_dimension_elos(
+                        h2,
+                        dim_scores,
+                        self.tournament_weights,
+                        k_factor=k_factor,
+                        is_h_a=True,
+                    )
+                    h2.update_dimension_elos(
+                        h1,
+                        dim_scores,
+                        self.tournament_weights,
+                        k_factor=k_factor,
+                        is_h_a=False,
+                    )
+                    # Determine overall winner from
+                    # weighted score sums
+                    h1_total = sum(
+                        dim_scores.get(d, {}).get("h_a", 0)
+                        * self.tournament_weights.get(d, 0)
+                        for d in self.tournament_weights
+                    )
+                    h2_total = sum(
+                        dim_scores.get(d, {}).get("h_b", 0)
+                        * self.tournament_weights.get(d, 0)
+                        for d in self.tournament_weights
+                    )
+                    if h1_total >= h2_total:
+                        winner, loser = h1, h2
                     else:
-                        winner_choice = None
-
-                if winner_choice == "a":
-                    winner, loser = h1, h2
-                elif winner_choice == "b":
-                    winner, loser = h2, h1
+                        winner, loser = h2, h1
+                    winner.win_count += 1
+                    loser.loss_count += 1
                 else:
-                    logger.warning(
-                        f"Round {round_num+1}: Invalid "
-                        f"winner choice "
-                        f"'{winner_choice}', "
-                        "skipping Elo update"
+                    # Legacy fallback: "winner" field
+                    winner_choice = tournament_data.get("winner")
+                    if winner_choice not in {"a", "b"}:
+                        match = re.search(
+                            r'"winner"\s*:\s*"?([ab])"?',
+                            tournament_response,
+                            re.IGNORECASE,
+                        )
+                        if match:
+                            winner_choice = match.group(1).lower()
+                        else:
+                            winner_choice = None
+
+                    if winner_choice == "a":
+                        winner, loser = h1, h2
+                    elif winner_choice == "b":
+                        winner, loser = h2, h1
+                    else:
+                        logger.warning(
+                            f"Round {round_num+1}: Invalid "
+                            f"winner '{winner_choice}', "
+                            "skipping Elo update"
+                        )
+                        skipped_rounds += 1
+                        continue
+
+                    old_winner_elo = winner.elo_rating
+                    old_loser_elo = loser.elo_rating
+                    winner.update_elo(
+                        loser.elo_rating,
+                        win=True,
+                        k_factor=k_factor,
                     )
-                    skipped_rounds += 1
-                    continue
-
-                old_winner_elo = winner.elo_rating
-                old_loser_elo = loser.elo_rating
-
-                winner.update_elo(
-                    loser.elo_rating,
-                    win=True,
-                    k_factor=k_factor,
-                )
-                loser.update_elo(
-                    old_winner_elo,
-                    win=False,
-                    k_factor=k_factor,
-                )
+                    loser.update_elo(
+                        old_winner_elo,
+                        win=False,
+                        k_factor=k_factor,
+                    )
 
                 valid_rounds += 1
                 logger.debug(
@@ -1458,7 +1741,7 @@ class AIScientistFramework:
                     "conversation_history": (
                         self.conversation.return_history_as_string()
                     ),
-                    "execution_metrics": (self.execution_metrics),
+                    "execution_metrics": self.execution_metrics,
                     "total_workflow_time": total_time,
                 }
 
@@ -1495,6 +1778,19 @@ class AIScientistFramework:
                 meta_review_data = self._run_meta_review_phase(
                     self.hypotheses
                 )
+
+                # --- Directed Regeneration (T2-B) ---
+                new_hypotheses = self._run_directed_regeneration(
+                    meta_review_data,
+                    self.hypotheses,
+                    research_goal,
+                )
+                if new_hypotheses:
+                    self.hypotheses.extend(new_hypotheses)
+                    logger.info(
+                        f"Added {len(new_hypotheses)} "
+                        f"gap-filling hypotheses"
+                    )
 
                 # --- Evolution ---
                 evo_count = min(
